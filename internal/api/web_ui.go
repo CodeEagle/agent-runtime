@@ -497,6 +497,69 @@ const webUIHTML = `<!doctype html>
       margin-top: auto;
       padding-top: 12px;
     }
+    .install-grid {
+      display: grid;
+      gap: 10px;
+      padding: 12px;
+    }
+    .install-card {
+      display: grid;
+      gap: 10px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(5, 10, 16, 0.66);
+    }
+    .install-card-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: flex-start;
+    }
+    .install-title {
+      display: grid;
+      gap: 2px;
+      min-width: 0;
+    }
+    .install-title strong {
+      color: var(--text);
+      font-size: 13px;
+    }
+    .install-title span {
+      color: var(--faint);
+      font-size: 11px;
+    }
+    .install-command {
+      padding: 8px;
+      border: 1px solid rgba(42, 61, 81, 0.82);
+      border-radius: 8px;
+      background: rgba(3, 7, 12, 0.8);
+      color: #d5e8ff;
+      font-family: var(--mono);
+      font-size: 11px;
+      overflow-wrap: anywhere;
+    }
+    .install-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .install-actions a {
+      min-height: 36px;
+      display: grid;
+      place-items: center;
+      padding: 8px 10px;
+      border: 1px solid var(--line-strong);
+      border-radius: 8px;
+      background: rgba(7, 12, 18, 0.68);
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 760;
+      text-decoration: none;
+    }
+    .install-actions button {
+      width: 100%;
+    }
     .form-stack {
       display: grid;
       gap: 12px;
@@ -750,35 +813,11 @@ const webUIHTML = `<!doctype html>
                   <span class="nav-icon">IN</span>
                   <div>
                     <h2 data-i18n="installCli">安装 CLI</h2>
-                    <p data-i18n="installCliDesc">注册已有的 CLI 二进制路径。</p>
+                    <p data-i18n="installCliDesc">从官方安装源执行推荐命令。</p>
                   </div>
                 </div>
               </div>
-              <div class="form-stack">
-                <div>
-                  <label for="tool-name" data-i18n="name">名称</label>
-                  <input id="tool-name" placeholder="codex">
-                </div>
-                <div>
-                  <label for="tool-path" data-i18n="path">路径</label>
-                  <input id="tool-path" placeholder="/usr/local/bin/codex">
-                </div>
-                <div class="field-row">
-                  <div>
-                    <label for="tool-version" data-i18n="version">版本</label>
-                    <input id="tool-version" placeholder="latest">
-                  </div>
-                  <div>
-                    <label for="tool-env" data-i18n="credentialEnv">凭据环境变量</label>
-                    <input id="tool-env" placeholder="CODEX_HOME">
-                  </div>
-                </div>
-                <div>
-                  <label for="tool-subdir" data-i18n="credentialSubdir">凭据子目录</label>
-                  <input id="tool-subdir" placeholder=".codex">
-                </div>
-                <button class="primary" id="save-tool" type="button" data-i18n="saveCli">保存 CLI</button>
-              </div>
+              <div class="install-grid" id="install-options"></div>
             </aside>
           </div>
         </section>
@@ -843,8 +882,11 @@ const webUIHTML = `<!doctype html>
         commandPath: '命令路径',
         loginCommand: '登录命令',
         installCli: '安装 CLI',
-        installCliDesc: '注册已有的 CLI 二进制路径。',
-        saveCli: '保存 CLI',
+        installCliDesc: '从官方安装源执行推荐命令。',
+        officialSource: '官方来源',
+        installCommand: '安装命令',
+        runInstall: '终端安装',
+        verifyInstall: '验证',
         tenantSubtitle: '查看 token 推导出的工具、工作区、凭据配置和终端访问边界。',
         noTools: '暂无已注册 CLI',
         noTenants: '暂无租户配置',
@@ -908,8 +950,11 @@ const webUIHTML = `<!doctype html>
         commandPath: 'Command Path',
         loginCommand: 'Login Command',
         installCli: 'Install CLI',
-        installCliDesc: 'Register an existing CLI binary path.',
-        saveCli: 'Save CLI',
+        installCliDesc: 'Run the recommended command from the official install source.',
+        officialSource: 'Official Source',
+        installCommand: 'Install Command',
+        runInstall: 'Install in Terminal',
+        verifyInstall: 'Verify',
         tenantSubtitle: 'Inspect token-derived tool, workspace, credential profile, and terminal boundaries.',
         noTools: 'No CLI tools registered',
         noTenants: 'No tenants configured',
@@ -955,13 +1000,72 @@ const webUIHTML = `<!doctype html>
     tokenInput.value = localStorage.getItem('agent-runtime-token') || 'dev-token';
 
     const loginCommands = [
-      { label: 'Claude Code', command: 'claude login', tool: 'claude' },
+      { label: 'Claude Code', command: 'claude', tool: 'claude' },
       { label: 'Codex', command: 'codex login', tool: 'codex' },
       { label: 'Gemini', command: 'gemini', tool: 'gemini' },
-      { label: 'iFlow', command: 'iflow login', tool: 'iflow' },
+      { label: 'iFlow', command: 'iflow', tool: 'iflow' },
       { label: 'OpenCode', command: 'opencode auth login', tool: 'opencode' },
-      { label: 'Kimi', command: 'kimi login', tool: 'kimi' },
-      { label: 'Qoder', command: 'qodercli login', tool: 'qoder' }
+      { label: 'Kimi', command: 'kimi', tool: 'kimi' },
+      { label: 'Qoder', command: 'qodercli', tool: 'qoder' }
+    ];
+
+    const installSources = [
+      {
+        label: 'Claude Code',
+        tool: 'claude',
+        provider: 'Anthropic',
+        docs: 'https://docs.anthropic.com/en/docs/claude-code/quickstart',
+        command: 'curl -fsSL https://claude.ai/install.sh | bash',
+        verify: 'claude --version'
+      },
+      {
+        label: 'Codex',
+        tool: 'codex',
+        provider: 'OpenAI',
+        docs: 'https://github.com/openai/codex',
+        command: 'npm install -g @openai/codex',
+        verify: 'codex --version'
+      },
+      {
+        label: 'Gemini CLI',
+        tool: 'gemini',
+        provider: 'Google',
+        docs: 'https://github.com/google-gemini/gemini-cli',
+        command: 'npm install -g @google/gemini-cli',
+        verify: 'gemini --version'
+      },
+      {
+        label: 'OpenCode',
+        tool: 'opencode',
+        provider: 'SST',
+        docs: 'https://opencode.ai/download',
+        command: 'curl -fsSL https://opencode.ai/install | bash',
+        verify: 'opencode --version'
+      },
+      {
+        label: 'iFlow',
+        tool: 'iflow',
+        provider: 'iFlow',
+        docs: 'https://platform.iflow.cn/cli/quickstart',
+        command: 'bash -c "$(curl -fsSL https://gitee.com/iflow-ai/iflow-cli/raw/main/install.sh)"',
+        verify: 'iflow --version'
+      },
+      {
+        label: 'Kimi',
+        tool: 'kimi',
+        provider: 'Moonshot AI',
+        docs: 'https://www.kimi.com/code/docs/en/kimi-code-cli/getting-started.html',
+        command: 'curl -LsSf https://code.kimi.com/install.sh | bash',
+        verify: 'kimi --version'
+      },
+      {
+        label: 'Qoder',
+        tool: 'qoder',
+        provider: 'Qoder',
+        docs: 'https://docs.qoder.com/cli/quick-start',
+        command: 'curl -fsSL https://qoder.com/install | bash',
+        verify: 'qodercli --version'
+      }
     ];
 
     function $(id) { return document.getElementById(id); }
@@ -1005,6 +1109,7 @@ const webUIHTML = `<!doctype html>
       renderLoginShortcuts();
       renderTools();
       renderToolCards();
+      renderInstallOptions();
       renderTenants();
       setConnected(state.connected, state.statusKey);
       $('rail-health').textContent = $('health').textContent === 'ok' ? t('runtimeReady') : t('runtimeOffline');
@@ -1107,6 +1212,7 @@ const webUIHTML = `<!doctype html>
       renderLoginShortcuts();
       renderTools();
       renderToolCards();
+      renderInstallOptions();
       renderTenants();
       updateContextLabels();
     }
@@ -1283,6 +1389,37 @@ const webUIHTML = `<!doctype html>
       });
     }
 
+    function renderInstallOptions() {
+      const container = $('install-options');
+      if (!container) return;
+      const knownTools = new Set(state.tools.map(function(tool) { return tool.name; }));
+      container.innerHTML = installSources.map(function(source) {
+        const registered = knownTools.has(source.tool);
+        return '<article class="install-card">' +
+          '<div class="install-card-head">' +
+            '<div class="install-title">' +
+              '<strong>' + escapeHTML(source.label) + '</strong>' +
+              '<span>' + escapeHTML(source.provider) + ' · ' + escapeHTML(t('officialSource')) + '</span>' +
+            '</div>' +
+            '<span class="badge ' + (registered ? 'ok' : 'warn') + '">' + escapeHTML(registered ? t('registered') : t('addLabel')) + '</span>' +
+          '</div>' +
+          '<div class="install-command">' + escapeHTML(source.command) + '</div>' +
+          '<div class="install-actions">' +
+            '<a href="' + escapeHTML(source.docs) + '" target="_blank" rel="noopener noreferrer">' + escapeHTML(t('officialSource')) + '</a>' +
+            '<button class="primary" type="button" data-install-command="' + escapeHTML(source.command) + '">' + escapeHTML(t('runInstall')) + '</button>' +
+            '<button class="ghost" type="button" data-install-command="' + escapeHTML(source.verify) + '">' + escapeHTML(t('verifyInstall')) + '</button>' +
+            '<button class="ghost" type="button" data-login-command="' + escapeHTML((loginCommands.find(function(item) { return item.tool === source.tool; }) || {}).command || source.tool) + '">' + escapeHTML(t('quickLogin')) + '</button>' +
+          '</div>' +
+        '</article>';
+      }).join('');
+      container.querySelectorAll('[data-install-command]').forEach(function(button) {
+        button.addEventListener('click', function() { runCommand(button.dataset.installCommand); });
+      });
+      container.querySelectorAll('[data-login-command]').forEach(function(button) {
+        button.addEventListener('click', function() { runCommand(button.dataset.loginCommand); });
+      });
+    }
+
     function toolCardHTML(tool, manageable) {
       const login = loginCommands.find(function(item) { return item.tool === tool.name; });
       const credentialHome = (tool.credential_env || 'HOME') + ' -> ' + (tool.credential_subdir || '.');
@@ -1363,22 +1500,6 @@ const webUIHTML = `<!doctype html>
     $('connect-terminal').addEventListener('click', connectTerminal);
     $('disconnect-terminal').addEventListener('click', disconnectTerminal);
     $('clear-terminal').addEventListener('click', function() { if (state.term) state.term.clear(); });
-    $('save-tool').addEventListener('click', async function() {
-      await api('/api/tools', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: $('tool-name').value.trim(),
-          path: $('tool-path').value.trim(),
-          version: $('tool-version').value.trim(),
-          credential_env: $('tool-env').value.trim(),
-          credential_subdir: $('tool-subdir').value.trim()
-        })
-      });
-      ['tool-name', 'tool-path', 'tool-version', 'tool-env', 'tool-subdir'].forEach(function(id) { $(id).value = ''; });
-      showToast(t('cliSaved'));
-      await refresh();
-    });
 
     initTerminal();
     applyLanguage();

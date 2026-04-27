@@ -8,17 +8,47 @@
   "tools": [
     {
       "name": "codex",
-      "path": "/usr/bin/env",
-      "version": "placeholder",
+      "path": "codex",
+      "version": "official",
       "credential_env": "CODEX_HOME",
       "credential_subdir": ".codex"
     },
     {
       "name": "claude",
-      "path": "/usr/bin/env",
-      "version": "placeholder",
+      "path": "claude",
+      "version": "official",
       "credential_env": "CLAUDE_CONFIG_DIR",
       "credential_subdir": ".claude"
+    },
+    {
+      "name": "gemini",
+      "path": "gemini",
+      "version": "official",
+      "credential_subdir": ".gemini"
+    },
+    {
+      "name": "opencode",
+      "path": "opencode",
+      "version": "official",
+      "credential_subdir": ".opencode"
+    },
+    {
+      "name": "iflow",
+      "path": "iflow",
+      "version": "official",
+      "credential_subdir": ".iflow"
+    },
+    {
+      "name": "kimi",
+      "path": "kimi",
+      "version": "official",
+      "credential_subdir": ".kimi"
+    },
+    {
+      "name": "qoder",
+      "path": "qodercli",
+      "version": "official",
+      "credential_subdir": ".qoder"
     }
   ],
   "tokens": [
@@ -26,7 +56,7 @@
       "token": "dev-token",
       "subject": "service-account:local-dev",
       "tenant": "team-a",
-      "allowed_tools": ["codex", "claude"],
+      "allowed_tools": ["codex", "claude", "gemini", "opencode", "iflow", "kimi", "qoder"],
       "allowed_workspaces": ["repo-*"],
       "allowed_credential_profiles": ["team-default"],
       "allow_terminal": true,

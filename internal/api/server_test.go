@@ -71,6 +71,22 @@ func TestServerServesWebUIAtRoot(t *testing.T) {
 	if !strings.Contains(body, "/assets/xterm/xterm.js") {
 		t.Fatalf("expected UI to load vendored xterm assets, got %q", body)
 	}
+	if strings.Contains(body, `id="tool-path"`) || strings.Contains(body, `id="tool-name"`) {
+		t.Fatalf("expected UI to use official install sources instead of manual path registration")
+	}
+	for _, marker := range []string{
+		"https://claude.ai/install.sh",
+		"npm install -g @openai/codex",
+		"npm install -g @google/gemini-cli",
+		"https://opencode.ai/install",
+		"https://gitee.com/iflow-ai/iflow-cli/raw/main/install.sh",
+		"https://code.kimi.com/install.sh",
+		"https://qoder.com/install",
+	} {
+		if !strings.Contains(body, marker) {
+			t.Fatalf("expected UI to include official install source %q", marker)
+		}
+	}
 }
 
 func TestServerServesVendoredXtermAsset(t *testing.T) {

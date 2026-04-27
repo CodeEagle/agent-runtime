@@ -52,8 +52,17 @@ func NewPersistentRegistry(initial []Tool, storePath string) (*Registry, error) 
 	if err := json.Unmarshal(raw, &stored); err != nil {
 		return nil, fmt.Errorf("parse tool registry: %w", err)
 	}
+	defaults := make(map[string]Tool, len(initial))
+	for _, tool := range initial {
+		if err := Validate(tool); err == nil {
+			defaults[tool.Name] = tool
+		}
+	}
 	for _, tool := range stored.Tools {
 		if err := Validate(tool); err == nil {
+			if fallback, ok := defaults[tool.Name]; ok && isLegacyEnvPlaceholder(tool) && fallback.Path != tool.Path {
+				tool = fallback
+			}
 			registry.byName[tool.Name] = tool
 		}
 	}
@@ -157,6 +166,10 @@ func Validate(tool Tool) error {
 func safeName(name string) bool {
 	name = strings.TrimSpace(name)
 	return name != "" && name != "." && name != ".." && !strings.ContainsAny(name, `/\`)
+}
+
+func isLegacyEnvPlaceholder(tool Tool) bool {
+	return tool.Path == "/usr/bin/env" && (tool.Version == "" || tool.Version == "placeholder" || tool.Version == "local-env")
 }
 
 type persistedRegistry struct {

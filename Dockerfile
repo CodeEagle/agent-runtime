@@ -14,9 +14,19 @@ RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags=
 
 FROM alpine:3.21
 
-RUN apk add --no-cache su-exec \
+RUN apk add --no-cache \
+        bash \
+        ca-certificates \
+        curl \
+        git \
+        nodejs \
+        npm \
+        python3 \
+        py3-pip \
+        ripgrep \
+        su-exec \
     && addgroup -S agent-runtime && adduser -S -G agent-runtime agent-runtime \
-    && mkdir -p /data /etc/agent-runtime \
+    && mkdir -p /data /data/bin /etc/agent-runtime \
     && chown -R agent-runtime:agent-runtime /data /etc/agent-runtime
 
 COPY --from=build /out/agent-runtime /usr/local/bin/agent-runtime
@@ -26,6 +36,7 @@ RUN chmod +x /usr/local/bin/agent-runtime-entrypoint
 
 EXPOSE 8080
 ENV AGENT_RUNTIME_CONFIG=/etc/agent-runtime/config.json
+ENV PATH=/data/bin:/home/agent-runtime/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD wget -qO- http://127.0.0.1:8080/api/health >/dev/null || exit 1

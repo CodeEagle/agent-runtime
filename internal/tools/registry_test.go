@@ -1,6 +1,7 @@
 package tools_test
 
 import (
+	"os"
 	"testing"
 
 	"agent-runtime/internal/tools"
@@ -55,5 +56,30 @@ func TestPersistentRegistryLoadsSavedTools(t *testing.T) {
 	}
 	if tool.Version != "test" {
 		t.Fatalf("unexpected persisted tool: %#v", tool)
+	}
+}
+
+func TestPersistentRegistryIgnoresLegacyEnvPlaceholder(t *testing.T) {
+	storePath := t.TempDir() + "/registry.json"
+	if err := os.WriteFile(storePath, []byte(`{
+		"tools": [
+			{"name": "codex", "path": "/usr/bin/env", "version": "placeholder", "credential_env": "CODEX_HOME", "credential_subdir": ".codex"}
+		]
+	}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	reloaded, err := tools.NewPersistentRegistry([]tools.Tool{
+		{Name: "codex", Path: "codex", Version: "official", CredentialEnv: "CODEX_HOME", CredentialSubdir: ".codex"},
+	}, storePath)
+	if err != nil {
+		t.Fatalf("reload persistent registry: %v", err)
+	}
+	tool, ok := reloaded.Resolve("codex")
+	if !ok {
+		t.Fatalf("expected tool to resolve")
+	}
+	if tool.Path != "codex" || tool.Version != "official" {
+		t.Fatalf("expected default tool to replace legacy placeholder, got %#v", tool)
 	}
 }

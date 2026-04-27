@@ -6,6 +6,8 @@ import (
 	"errors"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -15,9 +17,10 @@ import (
 type LocalExecutor struct{}
 
 func (LocalExecutor) Run(ctx context.Context, spec jobs.ExecutionSpec, sink jobs.EventSink) jobs.ExecutionResult {
-	cmd := exec.CommandContext(ctx, spec.Executable, spec.Args...)
+	env := mergeEnv(os.Environ(), spec.Env)
+	cmd := exec.CommandContext(ctx, resolveExecutable(spec.Executable, env), spec.Args...)
 	cmd.Dir = spec.WorkingDir
-	cmd.Env = mergeEnv(os.Environ(), spec.Env)
+	cmd.Env = env
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	cmd.WaitDelay = 5 * time.Second
 	cmd.Cancel = func() error {
@@ -98,6 +101,34 @@ func mergeEnv(base []string, extra map[string]string) []string {
 		out = append(out, item)
 	}
 	return out
+}
+
+func resolveExecutable(name string, env []string) string {
+	if strings.ContainsAny(name, `/\`) {
+		return name
+	}
+	path := envValue(env, "PATH")
+	for _, dir := range filepath.SplitList(path) {
+		if dir == "" {
+			dir = "."
+		}
+		candidate := filepath.Join(dir, name)
+		info, err := os.Stat(candidate)
+		if err == nil && !info.IsDir() && info.Mode()&0o111 != 0 {
+			return candidate
+		}
+	}
+	return name
+}
+
+func envValue(env []string, key string) string {
+	prefix := key + "="
+	for i := len(env) - 1; i >= 0; i-- {
+		if strings.HasPrefix(env[i], prefix) {
+			return strings.TrimPrefix(env[i], prefix)
+		}
+	}
+	return ""
 }
 
 func envKey(item string) string {

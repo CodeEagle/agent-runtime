@@ -219,6 +219,7 @@ func (h *Handler) sessionEnv(spec sessionSpec) []string {
 	overrides := map[string]string{
 		"HOME":                             spec.CredentialRoot,
 		"XDG_CONFIG_HOME":                  filepath.Join(spec.CredentialRoot, ".config"),
+		"PATH":                             credentialPath(spec.CredentialRoot, os.Getenv("PATH")),
 		"TERM":                             "xterm-256color",
 		"COLORTERM":                        "truecolor",
 		"AGENT_RUNTIME_TENANT":             spec.TenantID,
@@ -229,15 +230,14 @@ func (h *Handler) sessionEnv(spec sessionSpec) []string {
 	_ = os.MkdirAll(overrides["XDG_CONFIG_HOME"], 0o700)
 	if h.tools != nil {
 		for _, tool := range h.tools.List() {
-			if tool.CredentialEnv == "" {
-				continue
-			}
 			credentialPath := spec.CredentialRoot
 			if tool.CredentialSubdir != "" {
 				credentialPath = filepath.Join(spec.CredentialRoot, tool.CredentialSubdir)
 				_ = os.MkdirAll(credentialPath, 0o700)
 			}
-			overrides[tool.CredentialEnv] = credentialPath
+			if tool.CredentialEnv != "" {
+				overrides[tool.CredentialEnv] = credentialPath
+			}
 		}
 	}
 
@@ -259,6 +259,20 @@ func (h *Handler) sessionEnv(spec sessionSpec) []string {
 		}
 	}
 	return env
+}
+
+func credentialPath(home string, base string) string {
+	parts := []string{
+		filepath.Join(home, ".local", "bin"),
+		filepath.Join(home, "bin"),
+		filepath.Join(home, ".npm-global", "bin"),
+		filepath.Join(home, ".bun", "bin"),
+		"/data/bin",
+	}
+	if base != "" {
+		parts = append(parts, base)
+	}
+	return strings.Join(parts, ":")
 }
 
 type wsMessage struct {

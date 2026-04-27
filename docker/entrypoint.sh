@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-mkdir -p /data
+mkdir -p /data /data/bin
 
 if [ "$(id -u)" = "0" ]; then
   chown -R agent-runtime:agent-runtime /data

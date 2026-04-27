@@ -9,6 +9,7 @@ The goal is not to replace apps like cc-connect. The goal is to give many apps o
 This repo currently contains the first runtime slice:
 
 - Built-in Web UI at `/` for terminal login, CLI management, and tenant policy visibility.
+- Official-source CLI install cards for Claude Code, Codex, Gemini CLI, OpenCode, iFlow, Kimi, and Qoder.
 - JSON config loader.
 - Tenant-scoped token policies.
 - Persistent tool registry with add/update/delete HTTP APIs.
@@ -21,9 +22,9 @@ This repo currently contains the first runtime slice:
 
 Not implemented yet:
 
-- CLI installer/updater.
+- Background CLI installer/updater jobs.
 - Persistent audit database.
-- Real CLI installer/updater commands behind the CLI Manager controls.
+- CLI login-state health probes.
 
 ## API
 
@@ -80,7 +81,7 @@ curl -sS \
   http://127.0.0.1:8080/api/jobs
 ```
 
-`configs/local.json` maps `codex` and `claude` to `/usr/bin/env` so the job path is testable even before real CLIs are installed.
+`configs/local.json` registers the known CLI command names up front. Install them from the Web UI's official-source cards, then use the terminal or job API against the shared tenant credential profile.
 
 Open the Web UI at `/`, enter a token such as `dev-token`, connect the terminal with tenant `team-a`, workspace `repo-main`, and credential profile `team-default`, then use the login shortcut buttons for CLI auth flows.
 
