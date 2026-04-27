@@ -68,6 +68,24 @@ func TestServerServesWebUIAtRoot(t *testing.T) {
 	if !strings.Contains(body, "Terminal") || !strings.Contains(body, "CLI Manager") {
 		t.Fatalf("expected terminal and CLI manager tabs, got %q", body)
 	}
+	if !strings.Contains(body, "/assets/xterm/xterm.js") {
+		t.Fatalf("expected UI to load vendored xterm assets, got %q", body)
+	}
+}
+
+func TestServerServesVendoredXtermAsset(t *testing.T) {
+	handler := newTestServer(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/assets/xterm/xterm.css", nil)
+	res := httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", res.Code, res.Body.String())
+	}
+	if got := res.Header().Get("Content-Type"); !strings.Contains(got, "text/css") {
+		t.Fatalf("expected CSS content type, got %q", got)
+	}
 }
 
 func TestServerAddsAndDeletesTools(t *testing.T) {
@@ -135,7 +153,7 @@ func TestServerRunsTerminalWebSocket(t *testing.T) {
 	server := httptest.NewServer(handler)
 	defer server.Close()
 
-	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/api/terminal?token=token-1&tenant=team-a&workspace=repo-main&credential_profile=team-default"
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/api/v1/terminal/ws?token=token-1&tenant=team-a&workspace=repo-main&credential_profile=team-default"
 	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	if err != nil {
 		t.Fatalf("dial terminal websocket: %v", err)

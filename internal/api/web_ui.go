@@ -1,30 +1,30 @@
 package api
 
 const webUIHTML = `<!doctype html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Agent Runtime</title>
+  <link rel="stylesheet" href="/assets/xterm/xterm.css">
   <style>
     :root {
       color-scheme: dark;
       --bg: #05070a;
-      --bg-2: #081019;
-      --panel: rgba(12, 18, 27, 0.88);
-      --panel-solid: #0b111a;
-      --panel-soft: #0f1722;
-      --line: #1e2a36;
-      --line-strong: #2a3b4d;
+      --bg-panel: rgba(9, 14, 22, 0.88);
+      --bg-card: #0b111a;
+      --bg-card-2: #0f1722;
+      --line: #1d2a38;
+      --line-strong: #2a3d51;
       --text: #e8f2ff;
-      --muted: #8ca0b7;
-      --faint: #536579;
+      --muted: #94a7bd;
+      --faint: #607286;
       --cyan: #28e0d4;
       --blue: #4c8dff;
-      --green: #3ee486;
-      --amber: #f5b84b;
+      --green: #37e681;
+      --amber: #f5bc4f;
       --red: #ff5c73;
-      --terminal: #020407;
+      --terminal-bg: #05070a;
       --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
@@ -34,36 +34,34 @@ const webUIHTML = `<!doctype html>
       margin: 0;
       background:
         linear-gradient(rgba(40, 224, 212, 0.035) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(76, 141, 255, 0.03) 1px, transparent 1px),
-        radial-gradient(circle at 30% -10%, rgba(40, 224, 212, 0.14), transparent 34%),
-        linear-gradient(135deg, var(--bg), var(--bg-2) 62%, #030507);
+        linear-gradient(90deg, rgba(76, 141, 255, 0.025) 1px, transparent 1px),
+        radial-gradient(circle at 25% -10%, rgba(40, 224, 212, 0.16), transparent 32%),
+        linear-gradient(135deg, #040609, #09121c 58%, #030507);
       background-size: 36px 36px, 36px 36px, auto, auto;
       color: var(--text);
       line-height: 1.45;
     }
-    button, input, select {
-      font: inherit;
-    }
+    button, input, select { font: inherit; }
     button {
       min-height: 36px;
       border: 1px solid var(--line-strong);
       border-radius: 8px;
-      background: #111b28;
+      background: rgba(17, 27, 40, 0.9);
       color: var(--text);
       cursor: pointer;
-      font-weight: 700;
+      font-weight: 760;
       letter-spacing: 0;
     }
-    button:hover { border-color: rgba(40, 224, 212, 0.65); }
-    button:disabled { opacity: 0.46; cursor: not-allowed; }
+    button:hover { border-color: rgba(40, 224, 212, 0.66); }
+    button:disabled { cursor: not-allowed; opacity: 0.45; }
     button.primary {
-      border-color: rgba(40, 224, 212, 0.78);
+      border-color: rgba(40, 224, 212, 0.84);
       background: linear-gradient(135deg, rgba(40, 224, 212, 0.96), rgba(76, 141, 255, 0.9));
       color: #021014;
       box-shadow: 0 0 22px rgba(40, 224, 212, 0.18);
     }
     button.ghost {
-      background: rgba(13, 20, 31, 0.68);
+      background: rgba(7, 12, 18, 0.68);
       color: var(--muted);
     }
     button.danger {
@@ -77,23 +75,23 @@ const webUIHTML = `<!doctype html>
       padding: 8px 10px;
       border: 1px solid var(--line);
       border-radius: 8px;
-      background: rgba(3, 7, 12, 0.68);
-      color: var(--text);
       outline: none;
+      background: rgba(3, 7, 12, 0.76);
+      color: var(--text);
     }
     input:focus, select:focus {
-      border-color: rgba(40, 224, 212, 0.8);
-      box-shadow: 0 0 0 3px rgba(40, 224, 212, 0.11);
+      border-color: rgba(40, 224, 212, 0.78);
+      box-shadow: 0 0 0 3px rgba(40, 224, 212, 0.1);
     }
     label {
       display: block;
       margin-bottom: 6px;
       color: var(--muted);
       font-size: 11px;
-      font-weight: 800;
+      font-weight: 850;
       text-transform: uppercase;
     }
-    code, pre, .mono { font-family: var(--mono); }
+    code, .mono { font-family: var(--mono); }
     .app-shell {
       min-height: 100vh;
       display: grid;
@@ -105,7 +103,7 @@ const webUIHTML = `<!doctype html>
       height: 100vh;
       padding: 20px 16px;
       border-right: 1px solid var(--line);
-      background: rgba(4, 8, 13, 0.82);
+      background: rgba(4, 8, 13, 0.84);
       backdrop-filter: blur(18px);
       display: flex;
       flex-direction: column;
@@ -113,7 +111,7 @@ const webUIHTML = `<!doctype html>
     }
     .brand {
       display: grid;
-      grid-template-columns: 38px 1fr;
+      grid-template-columns: 38px minmax(0, 1fr);
       gap: 10px;
       align-items: center;
       min-height: 48px;
@@ -121,50 +119,49 @@ const webUIHTML = `<!doctype html>
     .brand-mark {
       width: 38px;
       height: 38px;
-      border: 1px solid rgba(40, 224, 212, 0.56);
-      border-radius: 8px;
-      background:
-        linear-gradient(135deg, rgba(40, 224, 212, 0.18), rgba(76, 141, 255, 0.16)),
-        #071018;
       display: grid;
       place-items: center;
+      border: 1px solid rgba(40, 224, 212, 0.56);
+      border-radius: 8px;
+      background: linear-gradient(135deg, rgba(40, 224, 212, 0.18), rgba(76, 141, 255, 0.16)), #071018;
       color: var(--cyan);
       font-family: var(--mono);
       font-weight: 900;
       box-shadow: inset 0 0 24px rgba(40, 224, 212, 0.1);
     }
-    .brand-title { font-size: 17px; font-weight: 800; }
+    .brand-title { font-size: 17px; font-weight: 850; }
     .brand-subtitle { color: var(--faint); font-size: 12px; }
     .nav {
       display: grid;
       gap: 8px;
     }
     .nav-button {
+      width: 100%;
       display: grid;
-      grid-template-columns: 22px 1fr auto;
+      grid-template-columns: 24px minmax(0, 1fr) auto;
       gap: 10px;
       align-items: center;
-      width: 100%;
       padding: 9px 10px;
       text-align: left;
       background: transparent;
       color: var(--muted);
     }
     .nav-button.active {
-      border-color: rgba(40, 224, 212, 0.58);
+      border-color: rgba(40, 224, 212, 0.6);
       background: rgba(40, 224, 212, 0.1);
       color: var(--text);
     }
     .nav-icon {
-      width: 22px;
-      height: 22px;
-      border-radius: 6px;
+      width: 24px;
+      height: 24px;
       display: grid;
       place-items: center;
+      border-radius: 7px;
       background: rgba(255, 255, 255, 0.04);
       color: var(--cyan);
       font-family: var(--mono);
       font-size: 12px;
+      font-weight: 900;
     }
     .nav-kbd {
       color: var(--faint);
@@ -184,10 +181,10 @@ const webUIHTML = `<!doctype html>
       justify-content: space-between;
       gap: 8px;
       margin-bottom: 9px;
-      font-size: 12px;
       color: var(--muted);
+      font-size: 12px;
       text-transform: uppercase;
-      font-weight: 800;
+      font-weight: 850;
     }
     .workspace {
       min-width: 0;
@@ -195,15 +192,15 @@ const webUIHTML = `<!doctype html>
     }
     .topbar {
       min-height: 64px;
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      background: rgba(8, 13, 20, 0.84);
-      backdrop-filter: blur(18px);
       display: grid;
-      grid-template-columns: minmax(260px, 1fr) minmax(380px, 560px);
+      grid-template-columns: minmax(280px, 1fr) minmax(480px, 700px);
       gap: 16px;
       align-items: center;
       padding: 12px 14px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(8, 13, 20, 0.86);
+      backdrop-filter: blur(18px);
       box-shadow: 0 20px 70px rgba(0, 0, 0, 0.28);
     }
     .page-title h1 {
@@ -219,25 +216,43 @@ const webUIHTML = `<!doctype html>
     }
     .top-actions {
       display: grid;
-      grid-template-columns: 1fr 92px;
+      grid-template-columns: 1fr 94px 126px;
       gap: 8px;
       align-items: center;
     }
     .token-field {
       display: grid;
-      grid-template-columns: 86px minmax(0, 1fr);
+      grid-template-columns: 80px minmax(0, 1fr);
       gap: 8px;
       align-items: center;
     }
     .token-field span {
       color: var(--muted);
       font-size: 12px;
-      font-weight: 800;
+      font-weight: 850;
       text-transform: uppercase;
     }
-    .content {
-      margin-top: 16px;
+    .lang-toggle {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px;
+      padding: 4px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(3, 7, 12, 0.72);
     }
+    .lang-toggle button {
+      min-height: 28px;
+      border: 0;
+      background: transparent;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .lang-toggle button.active {
+      background: rgba(40, 224, 212, 0.15);
+      color: var(--cyan);
+    }
+    .content { margin-top: 16px; }
     .view { display: none; }
     .view.active { display: block; }
     .status-grid {
@@ -248,15 +263,15 @@ const webUIHTML = `<!doctype html>
     }
     .metric {
       min-height: 66px;
+      padding: 11px 12px;
       border: 1px solid var(--line);
       border-radius: 8px;
       background: rgba(10, 17, 26, 0.74);
-      padding: 11px 12px;
     }
     .metric-label {
       color: var(--muted);
       font-size: 11px;
-      font-weight: 800;
+      font-weight: 850;
       text-transform: uppercase;
     }
     .metric-value {
@@ -264,9 +279,8 @@ const webUIHTML = `<!doctype html>
       display: flex;
       align-items: center;
       gap: 8px;
-      color: var(--text);
       font-size: 15px;
-      font-weight: 800;
+      font-weight: 850;
       overflow-wrap: anywhere;
     }
     .led {
@@ -274,17 +288,11 @@ const webUIHTML = `<!doctype html>
       height: 8px;
       border-radius: 999px;
       background: var(--amber);
-      box-shadow: 0 0 14px rgba(245, 184, 75, 0.65);
+      box-shadow: 0 0 14px rgba(245, 188, 79, 0.65);
       flex: 0 0 auto;
     }
-    .led.ok {
-      background: var(--green);
-      box-shadow: 0 0 14px rgba(62, 228, 134, 0.72);
-    }
-    .led.bad {
-      background: var(--red);
-      box-shadow: 0 0 14px rgba(255, 92, 115, 0.72);
-    }
+    .led.ok { background: var(--green); box-shadow: 0 0 14px rgba(55, 230, 129, 0.72); }
+    .led.bad { background: var(--red); box-shadow: 0 0 14px rgba(255, 92, 115, 0.72); }
     .terminal-grid {
       display: grid;
       grid-template-columns: minmax(0, 1fr) 340px;
@@ -294,8 +302,9 @@ const webUIHTML = `<!doctype html>
     .panel {
       border: 1px solid var(--line);
       border-radius: 8px;
-      background: var(--panel);
+      background: var(--bg-panel);
       box-shadow: 0 24px 90px rgba(0, 0, 0, 0.28);
+      overflow: hidden;
     }
     .panel-header {
       min-height: 58px;
@@ -323,6 +332,12 @@ const webUIHTML = `<!doctype html>
       font-size: 12px;
       overflow-wrap: anywhere;
     }
+    .panel-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
     .badge {
       display: inline-flex;
       align-items: center;
@@ -334,91 +349,45 @@ const webUIHTML = `<!doctype html>
       background: rgba(255, 255, 255, 0.035);
       color: var(--muted);
       font-size: 12px;
-      font-weight: 800;
+      font-weight: 850;
       white-space: nowrap;
     }
-    .badge.ok { color: #b7ffd4; border-color: rgba(62, 228, 134, 0.38); }
-    .badge.warn { color: #ffe0a3; border-color: rgba(245, 184, 75, 0.42); }
+    .badge.ok { color: #b7ffd4; border-color: rgba(55, 230, 129, 0.38); }
+    .badge.warn { color: #ffe0a3; border-color: rgba(245, 188, 79, 0.42); }
     .context-bar {
       display: grid;
-      grid-template-columns: 150px minmax(160px, 1fr) minmax(160px, 1fr) 116px;
+      grid-template-columns: 150px minmax(160px, 1fr) minmax(160px, 1fr);
       gap: 10px;
       padding: 14px;
       border-bottom: 1px solid var(--line);
       background: rgba(5, 9, 14, 0.35);
       align-items: end;
     }
-    .terminal-shell {
+    .terminal-body {
+      height: clamp(500px, calc(100vh - 336px), 760px);
+      min-height: 500px;
       padding: 12px;
     }
-    .terminal-screen {
-      position: relative;
-      height: clamp(360px, calc(100vh - 500px), 560px);
-      min-height: 360px;
+    .xterm-frame {
+      height: 100%;
+      overflow: hidden;
       border: 1px solid #172332;
       border-radius: 8px;
-      background:
-        linear-gradient(rgba(40, 224, 212, 0.028) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(40, 224, 212, 0.018) 1px, transparent 1px),
-        var(--terminal);
-      background-size: 22px 22px, 22px 22px, auto;
-      overflow: auto;
-      outline: none;
+      background: var(--terminal-bg);
       box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02), inset 0 0 42px rgba(40, 224, 212, 0.04);
     }
-    .terminal-screen:focus {
-      border-color: rgba(40, 224, 212, 0.72);
-      box-shadow: 0 0 0 3px rgba(40, 224, 212, 0.09), inset 0 0 42px rgba(40, 224, 212, 0.04);
+    #terminal-container {
+      height: 100%;
+      width: 100%;
+      padding: 8px;
     }
-    .terminal-output {
-      margin: 0;
-      min-height: 100%;
-      padding: 15px;
-      color: #d7fbe9;
-      font-size: 13px;
-      line-height: 1.5;
-      white-space: pre-wrap;
-      overflow-wrap: anywhere;
+    .xterm {
+      height: 100%;
+      padding: 2px;
     }
-    .screen-hint {
-      position: sticky;
-      bottom: 0;
-      display: flex;
-      justify-content: space-between;
-      gap: 10px;
-      padding: 8px 12px;
-      border-top: 1px solid rgba(30, 42, 54, 0.68);
-      background: rgba(3, 6, 10, 0.82);
-      color: var(--faint);
-      font-size: 12px;
-    }
-    .command-dock {
-      display: grid;
-      grid-template-columns: auto minmax(0, 1fr) 80px;
-      gap: 8px;
-      align-items: center;
-      margin-top: 10px;
-      padding: 9px;
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      background: rgba(6, 11, 17, 0.82);
-    }
-    .prompt-label {
-      color: var(--cyan);
-      font-family: var(--mono);
-      font-size: 13px;
-      font-weight: 800;
-      white-space: nowrap;
-    }
-    .terminal-actions {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      padding: 0 12px 12px;
-    }
-    .side-stack {
-      display: grid;
-      gap: 16px;
+    .xterm .xterm-viewport {
+      background-color: transparent;
+      scrollbar-color: #233447 transparent;
     }
     .quick-grid {
       display: grid;
@@ -426,12 +395,12 @@ const webUIHTML = `<!doctype html>
       padding: 12px;
     }
     .quick-button {
-      display: grid;
-      grid-template-columns: 1fr auto;
-      gap: 8px;
-      align-items: center;
       width: 100%;
       min-height: 46px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 8px;
+      align-items: center;
       padding: 10px 11px;
       text-align: left;
       background: rgba(9, 16, 24, 0.72);
@@ -440,7 +409,7 @@ const webUIHTML = `<!doctype html>
       display: block;
       font-size: 13px;
     }
-    .quick-button span {
+    .quick-button span span {
       display: block;
       margin-top: 2px;
       color: var(--faint);
@@ -448,16 +417,20 @@ const webUIHTML = `<!doctype html>
       font-size: 11px;
       font-weight: 500;
     }
+    .side-stack {
+      display: grid;
+      gap: 16px;
+    }
     .tool-cards {
       display: grid;
       gap: 10px;
       padding: 12px;
     }
     .tool-card {
+      padding: 11px;
       border: 1px solid var(--line);
       border-radius: 8px;
       background: rgba(5, 10, 16, 0.62);
-      padding: 11px;
     }
     .tool-card-head {
       display: flex;
@@ -466,10 +439,10 @@ const webUIHTML = `<!doctype html>
       gap: 10px;
     }
     .tool-name {
+      color: var(--text);
       font-family: var(--mono);
       font-size: 13px;
       font-weight: 900;
-      color: var(--text);
     }
     .tool-path {
       margin-top: 8px;
@@ -478,29 +451,20 @@ const webUIHTML = `<!doctype html>
       font-size: 11px;
       overflow-wrap: anywhere;
     }
-    .empty {
-      padding: 18px;
-      color: var(--muted);
-      border: 1px dashed var(--line-strong);
-      border-radius: 8px;
-      background: rgba(255, 255, 255, 0.025);
-    }
     .manager-grid {
       display: grid;
       grid-template-columns: minmax(0, 1fr) 360px;
       gap: 16px;
       align-items: start;
     }
-    .table-wrap {
-      overflow: auto;
-    }
+    .table-wrap { overflow: auto; }
     table {
       width: 100%;
       border-collapse: collapse;
       font-size: 13px;
     }
     th, td {
-      padding: 12px 12px;
+      padding: 12px;
       border-bottom: 1px solid var(--line);
       text-align: left;
       vertical-align: top;
@@ -533,10 +497,10 @@ const webUIHTML = `<!doctype html>
       padding: 14px;
     }
     .tenant-card {
+      padding: 14px;
       border: 1px solid var(--line);
       border-radius: 8px;
       background: rgba(6, 12, 18, 0.7);
-      padding: 14px;
     }
     .tenant-name {
       display: flex;
@@ -559,23 +523,30 @@ const webUIHTML = `<!doctype html>
     }
     .kv strong {
       color: var(--faint);
-      font-weight: 800;
-      text-transform: uppercase;
       font-size: 11px;
+      font-weight: 850;
+      text-transform: uppercase;
+    }
+    .empty {
+      padding: 18px;
+      color: var(--muted);
+      border: 1px dashed var(--line-strong);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.025);
     }
     .toast {
       position: fixed;
       right: 18px;
       bottom: 18px;
       z-index: 10;
+      display: none;
       max-width: 420px;
       padding: 12px 14px;
       border: 1px solid rgba(40, 224, 212, 0.42);
       border-radius: 8px;
-      background: rgba(5, 10, 16, 0.94);
+      background: rgba(5, 10, 16, 0.95);
       color: var(--text);
       box-shadow: 0 20px 70px rgba(0, 0, 0, 0.45);
-      display: none;
     }
     .toast.show { display: block; }
     @media (max-width: 1120px) {
@@ -589,14 +560,14 @@ const webUIHTML = `<!doctype html>
       }
       .nav { grid-auto-flow: column; grid-auto-columns: max-content; }
       .rail-card { display: none; }
-      .terminal-grid, .manager-grid { grid-template-columns: 1fr; }
       .topbar { grid-template-columns: 1fr; }
+      .terminal-grid, .manager-grid { grid-template-columns: 1fr; }
     }
     @media (max-width: 760px) {
       .workspace { padding: 10px; }
-      .status-grid, .context-bar, .field-row { grid-template-columns: 1fr; }
-      .terminal-screen { min-height: 360px; }
-      .command-dock { grid-template-columns: 1fr; }
+      .top-actions, .status-grid, .context-bar, .field-row { grid-template-columns: 1fr; }
+      .token-field { grid-template-columns: 1fr; }
+      .terminal-body { height: 460px; min-height: 460px; }
     }
   </style>
 </head>
@@ -607,22 +578,22 @@ const webUIHTML = `<!doctype html>
         <div class="brand-mark">AR</div>
         <div>
           <div class="brand-title">Agent Runtime</div>
-          <div class="brand-subtitle">CLI control plane</div>
+          <div class="brand-subtitle" data-i18n="brandSubtitle">CLI 控制平面</div>
         </div>
       </div>
       <nav class="nav" aria-label="Main navigation">
         <button class="nav-button active" type="button" data-view="terminal-view">
-          <span class="nav-icon">&gt;_</span><span>Terminal</span><span class="nav-kbd">01</span>
+          <span class="nav-icon">&gt;_</span><span data-i18n="navTerminal">终端</span><span class="nav-kbd">01</span>
         </button>
         <button class="nav-button" type="button" data-view="tools-view">
-          <span class="nav-icon">CL</span><span>CLI Manager</span><span class="nav-kbd">02</span>
+          <span class="nav-icon">CL</span><span data-i18n="navTools">CLI 管理</span><span class="nav-kbd">02</span>
         </button>
         <button class="nav-button" type="button" data-view="tenants-view">
-          <span class="nav-icon">TN</span><span>Tenants</span><span class="nav-kbd">03</span>
+          <span class="nav-icon">TN</span><span data-i18n="navTenants">租户</span><span class="nav-kbd">03</span>
         </button>
       </nav>
       <div class="rail-card">
-        <div class="rail-card-title"><span>Runtime</span><span id="rail-health">checking</span></div>
+        <div class="rail-card-title"><span data-i18n="runtime">运行时</span><span id="rail-health">Health OK</span></div>
         <div class="badge ok"><span class="led ok"></span><span id="rail-context">team-a / repo-main</span></div>
       </div>
     </aside>
@@ -630,34 +601,38 @@ const webUIHTML = `<!doctype html>
     <div class="workspace">
       <header class="topbar">
         <div class="page-title">
-          <h1 id="page-heading">Terminal</h1>
-          <p id="page-subtitle">Interactive shell for login, auth flows, and CLI diagnostics.</p>
+          <h1 id="page-heading">终端</h1>
+          <p id="page-subtitle">用于登录认证、CLI 调试和手动维护的完整 shell。</p>
         </div>
         <div class="top-actions">
           <div class="token-field">
-            <span>Token</span>
+            <span data-i18n="token">Token</span>
             <input id="token" type="password" autocomplete="off" placeholder="dev-token">
           </div>
-          <button class="ghost" id="refresh" type="button">Refresh</button>
+          <button class="ghost" id="refresh" type="button" data-i18n="refresh">刷新</button>
+          <div class="lang-toggle" aria-label="Language">
+            <button id="lang-zh" type="button" data-lang="zh">中文</button>
+            <button id="lang-en" type="button" data-lang="en">EN</button>
+          </div>
         </div>
       </header>
 
       <main class="content">
         <div class="status-grid">
           <div class="metric">
-            <div class="metric-label">Health</div>
+            <div class="metric-label" data-i18n="health">健康状态</div>
             <div class="metric-value"><span class="led" id="health-led"></span><span id="health">loading</span></div>
           </div>
           <div class="metric">
-            <div class="metric-label">Ready</div>
+            <div class="metric-label" data-i18n="ready">就绪状态</div>
             <div class="metric-value"><span class="led" id="ready-led"></span><span id="ready">loading</span></div>
           </div>
           <div class="metric">
-            <div class="metric-label">Registered CLI</div>
+            <div class="metric-label" data-i18n="registeredCli">已注册 CLI</div>
             <div class="metric-value"><span id="tool-count">0</span></div>
           </div>
           <div class="metric">
-            <div class="metric-label">Tenants</div>
+            <div class="metric-label" data-i18n="tenants">租户</div>
             <div class="metric-value"><span id="tenant-count">0</span></div>
           </div>
         </div>
@@ -669,53 +644,38 @@ const webUIHTML = `<!doctype html>
                 <div class="panel-title">
                   <span class="nav-icon">&gt;_</span>
                   <div>
-                    <h2>Terminal</h2>
-                    <p id="terminal-context">Select tenant, workspace, and credential profile.</p>
+                    <h2 data-i18n="terminal">终端</h2>
+                    <p id="terminal-context">team-a / repo-main / team-default</p>
                   </div>
                 </div>
-                <span class="badge warn" id="connection-badge"><span class="led" id="terminal-led"></span><span id="terminal-state">disconnected</span></span>
+                <div class="panel-actions">
+                  <span class="badge warn" id="connection-badge"><span class="led" id="terminal-led"></span><span id="terminal-state">disconnected</span></span>
+                  <button class="primary" id="connect-terminal" type="button" data-i18n="connect">连接</button>
+                  <button class="ghost" id="clear-terminal" type="button" data-i18n="clear">清屏</button>
+                  <button class="ghost" id="disconnect-terminal" type="button" data-i18n="disconnect">断开</button>
+                </div>
               </div>
 
               <div class="context-bar">
                 <div>
-                  <label for="tenant">Tenant</label>
+                  <label for="tenant" data-i18n="tenant">租户</label>
                   <select id="tenant"></select>
                 </div>
                 <div>
-                  <label for="workspace">Workspace</label>
+                  <label for="workspace" data-i18n="workspace">工作区</label>
                   <input id="workspace" value="repo-main">
                 </div>
                 <div>
-                  <label for="profile">Credential Profile</label>
+                  <label for="profile" data-i18n="credentialProfile">凭据配置</label>
                   <input id="profile" value="team-default" list="profile-options">
                   <datalist id="profile-options"></datalist>
                 </div>
-                <button class="primary" id="connect-terminal" type="button">Connect</button>
               </div>
 
-              <div class="terminal-shell">
-                <div class="terminal-screen" id="terminal-screen" tabindex="0" spellcheck="false" aria-label="Interactive terminal">
-                  <pre class="terminal-output" id="terminal-output">Terminal is offline.
-
-Connect to start an interactive shell. After connecting, click this terminal and type directly.
-Credential state is isolated by tenant and profile.</pre>
-                  <div class="screen-hint">
-                    <span id="screen-hint-left">Click terminal to focus. Ctrl-C, arrows, tab, paste are supported.</span>
-                    <span id="screen-hint-right" class="mono">120x32</span>
-                  </div>
+              <div class="terminal-body">
+                <div class="xterm-frame">
+                  <div id="terminal-container"></div>
                 </div>
-                <div class="command-dock">
-                  <span class="prompt-label">agent-runtime $</span>
-                  <input id="command-input" class="mono" autocomplete="off" placeholder="Type a command, for example codex login" disabled>
-                  <button id="send-command" type="button" disabled>Send</button>
-                </div>
-              </div>
-
-              <div class="terminal-actions">
-                <button class="ghost" id="disconnect-terminal" type="button" disabled>Disconnect</button>
-                <button class="ghost" id="clear-terminal" type="button">Clear</button>
-                <button class="ghost" id="ctrl-c" type="button" disabled>Ctrl-C</button>
-                <button class="ghost" id="ctrl-l" type="button" disabled>Ctrl-L</button>
               </div>
             </section>
 
@@ -725,8 +685,8 @@ Credential state is isolated by tenant and profile.</pre>
                   <div class="panel-title">
                     <span class="nav-icon">QL</span>
                     <div>
-                      <h2>Quick Login</h2>
-                      <p>Starts a terminal when needed, then runs the login command.</p>
+                      <h2 data-i18n="quickLogin">快捷登录</h2>
+                      <p data-i18n="quickLoginDesc">必要时自动连接终端，然后执行登录命令。</p>
                     </div>
                   </div>
                 </div>
@@ -738,11 +698,11 @@ Credential state is isolated by tenant and profile.</pre>
                   <div class="panel-title">
                     <span class="nav-icon">CL</span>
                     <div>
-                      <h2>CLI Manager</h2>
-                      <p>Installed command entries and credential homes.</p>
+                      <h2 data-i18n="cliManager">CLI 管理</h2>
+                      <p data-i18n="cliManagerDesc">已注册命令和凭据目录。</p>
                     </div>
                   </div>
-                  <button class="ghost" type="button" data-view-jump="tools-view">Manage</button>
+                  <button class="ghost" type="button" data-view-jump="tools-view" data-i18n="manage">管理</button>
                 </div>
                 <div class="tool-cards" id="cli-cards"></div>
               </section>
@@ -757,15 +717,24 @@ Credential state is isolated by tenant and profile.</pre>
                 <div class="panel-title">
                   <span class="nav-icon">CL</span>
                   <div>
-                    <h2>CLI Manager</h2>
-                    <p>Add, update, or remove CLI definitions used by jobs and terminal credential envs.</p>
+                    <h2 data-i18n="cliManager">CLI 管理</h2>
+                    <p data-i18n="toolsSubtitle">添加、更新或删除共享运行时使用的 CLI 定义。</p>
                   </div>
                 </div>
               </div>
               <div class="table-wrap">
                 <table>
-                  <thead><tr><th>Name</th><th>Version</th><th>Path</th><th>Credential Env</th><th>Credential Subdir</th><th></th></tr></thead>
-                  <tbody id="tools"><tr><td colspan="6" class="empty">Loading CLI tools</td></tr></tbody>
+                  <thead>
+                    <tr>
+                      <th data-i18n="name">名称</th>
+                      <th data-i18n="version">版本</th>
+                      <th data-i18n="path">路径</th>
+                      <th data-i18n="credentialEnv">凭据环境变量</th>
+                      <th data-i18n="credentialSubdir">凭据子目录</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody id="tools"><tr><td colspan="6"><div class="empty">Loading CLI tools</div></td></tr></tbody>
                 </table>
               </div>
             </section>
@@ -775,35 +744,35 @@ Credential state is isolated by tenant and profile.</pre>
                 <div class="panel-title">
                   <span class="nav-icon">IN</span>
                   <div>
-                    <h2>Install CLI</h2>
-                    <p>Register an existing binary path.</p>
+                    <h2 data-i18n="installCli">安装 CLI</h2>
+                    <p data-i18n="installCliDesc">注册已有的 CLI 二进制路径。</p>
                   </div>
                 </div>
               </div>
               <div class="form-stack">
                 <div>
-                  <label for="tool-name">Name</label>
+                  <label for="tool-name" data-i18n="name">名称</label>
                   <input id="tool-name" placeholder="codex">
                 </div>
                 <div>
-                  <label for="tool-path">Path</label>
+                  <label for="tool-path" data-i18n="path">路径</label>
                   <input id="tool-path" placeholder="/usr/local/bin/codex">
                 </div>
                 <div class="field-row">
                   <div>
-                    <label for="tool-version">Version</label>
+                    <label for="tool-version" data-i18n="version">版本</label>
                     <input id="tool-version" placeholder="latest">
                   </div>
                   <div>
-                    <label for="tool-env">Credential Env</label>
+                    <label for="tool-env" data-i18n="credentialEnv">凭据环境变量</label>
                     <input id="tool-env" placeholder="CODEX_HOME">
                   </div>
                 </div>
                 <div>
-                  <label for="tool-subdir">Credential Subdir</label>
+                  <label for="tool-subdir" data-i18n="credentialSubdir">凭据子目录</label>
                   <input id="tool-subdir" placeholder=".codex">
                 </div>
-                <button class="primary" id="save-tool" type="button">Save CLI</button>
+                <button class="primary" id="save-tool" type="button" data-i18n="saveCli">保存 CLI</button>
               </div>
             </aside>
           </div>
@@ -815,12 +784,12 @@ Credential state is isolated by tenant and profile.</pre>
               <div class="panel-title">
                 <span class="nav-icon">TN</span>
                 <div>
-                  <h2>Tenants</h2>
-                  <p>Token-derived tenant boundaries for tools, workspaces, credential profiles, and terminal access.</p>
+                  <h2 data-i18n="tenants">租户</h2>
+                  <p data-i18n="tenantSubtitle">查看 token 推导出的工具、工作区、凭据配置和终端访问边界。</p>
                 </div>
               </div>
             </div>
-            <div class="tenant-grid" id="tenants"></div>
+            <div class="tenant-grid" id="tenants-list"></div>
           </section>
         </section>
       </main>
@@ -829,35 +798,163 @@ Credential state is isolated by tenant and profile.</pre>
 
   <div class="toast" id="toast"></div>
 
+  <script src="/assets/xterm/xterm.js"></script>
   <script>
+    const messages = {
+      zh: {
+        brandSubtitle: 'CLI 控制平面',
+        navTerminal: '终端',
+        navTools: 'CLI 管理',
+        navTenants: '租户',
+        runtime: '运行时',
+        token: 'Token',
+        refresh: '刷新',
+        health: '健康状态',
+        ready: '就绪状态',
+        registeredCli: '已注册 CLI',
+        tenants: '租户',
+        terminal: '终端',
+        terminalSubtitle: '用于登录认证、CLI 调试和手动维护的完整 shell。',
+        cliManager: 'CLI 管理',
+        cliSubtitle: '安装、更新和删除共享运行时使用的 CLI。',
+        tenantsSubtitle: '查看租户边界、凭据配置和终端权限。',
+        connect: '连接',
+        clear: '清屏',
+        disconnect: '断开',
+        tenant: '租户',
+        workspace: '工作区',
+        credentialProfile: '凭据配置',
+        quickLogin: '快捷登录',
+        quickLoginDesc: '必要时自动连接终端，然后执行登录命令。',
+        cliManagerDesc: '已注册命令和凭据目录。',
+        toolsSubtitle: '添加、更新或删除共享运行时使用的 CLI 定义。',
+        manage: '管理',
+        name: '名称',
+        version: '版本',
+        path: '路径',
+        credentialEnv: '凭据环境变量',
+        credentialSubdir: '凭据子目录',
+        installCli: '安装 CLI',
+        installCliDesc: '注册已有的 CLI 二进制路径。',
+        saveCli: '保存 CLI',
+        tenantSubtitle: '查看 token 推导出的工具、工作区、凭据配置和终端访问边界。',
+        noTools: '暂无已注册 CLI',
+        noTenants: '暂无租户配置',
+        delete: '删除',
+        registered: '已注册',
+        readyLabel: '可用',
+        addLabel: '待添加',
+        terminalAllowed: '允许终端',
+        terminalBlocked: '禁止终端',
+        subjects: '主体',
+        tools: '工具',
+        workspaces: '工作区',
+        profiles: '凭据配置',
+        connected: '已连接',
+        disconnected: '未连接',
+        connecting: '连接中',
+        connectionError: '连接错误',
+        exited: '已退出',
+        terminalWelcome: 'Agent Runtime 终端已就绪。点击连接打开 shell，或使用右侧快捷登录。',
+        terminalConnecting: '正在连接终端...',
+        runtimeReady: 'Health OK',
+        runtimeOffline: 'Offline',
+        refreshed: '状态已刷新',
+        cliSaved: 'CLI 已保存',
+        cliDeleted: 'CLI 已删除'
+      },
+      en: {
+        brandSubtitle: 'CLI control plane',
+        navTerminal: 'Terminal',
+        navTools: 'CLI Manager',
+        navTenants: 'Tenants',
+        runtime: 'Runtime',
+        token: 'Token',
+        refresh: 'Refresh',
+        health: 'Health',
+        ready: 'Ready',
+        registeredCli: 'Registered CLI',
+        tenants: 'Tenants',
+        terminal: 'Terminal',
+        terminalSubtitle: 'Full shell for login, CLI diagnostics, and manual maintenance.',
+        cliManager: 'CLI Manager',
+        cliSubtitle: 'Install, update, and remove CLI entries used by shared runtimes.',
+        tenantsSubtitle: 'Inspect tenant boundaries, credential profiles, and terminal permissions.',
+        connect: 'Connect',
+        clear: 'Clear',
+        disconnect: 'Disconnect',
+        tenant: 'Tenant',
+        workspace: 'Workspace',
+        credentialProfile: 'Credential Profile',
+        quickLogin: 'Quick Login',
+        quickLoginDesc: 'Connects the terminal when needed, then runs the login command.',
+        cliManagerDesc: 'Registered commands and credential homes.',
+        toolsSubtitle: 'Add, update, or remove CLI definitions used by the shared runtime.',
+        manage: 'Manage',
+        name: 'Name',
+        version: 'Version',
+        path: 'Path',
+        credentialEnv: 'Credential Env',
+        credentialSubdir: 'Credential Subdir',
+        installCli: 'Install CLI',
+        installCliDesc: 'Register an existing CLI binary path.',
+        saveCli: 'Save CLI',
+        tenantSubtitle: 'Inspect token-derived tool, workspace, credential profile, and terminal boundaries.',
+        noTools: 'No CLI tools registered',
+        noTenants: 'No tenants configured',
+        delete: 'Delete',
+        registered: 'Registered',
+        readyLabel: 'Ready',
+        addLabel: 'Add',
+        terminalAllowed: 'Terminal allowed',
+        terminalBlocked: 'Terminal blocked',
+        subjects: 'Subjects',
+        tools: 'Tools',
+        workspaces: 'Workspaces',
+        profiles: 'Profiles',
+        connected: 'Connected',
+        disconnected: 'Disconnected',
+        connecting: 'Connecting',
+        connectionError: 'Connection error',
+        exited: 'Exited',
+        terminalWelcome: 'Agent Runtime terminal is ready. Click Connect to open a shell, or use Quick Login.',
+        terminalConnecting: 'Connecting terminal...',
+        runtimeReady: 'Health OK',
+        runtimeOffline: 'Offline',
+        refreshed: 'Runtime status refreshed',
+        cliSaved: 'CLI saved',
+        cliDeleted: 'CLI deleted'
+      }
+    };
+
+    const savedLanguage = localStorage.getItem('agent-runtime-lang');
     const state = {
+      lang: savedLanguage || 'zh',
+      view: 'terminal-view',
       tools: [],
       tenants: [],
       ws: null,
       connected: false,
-      pendingCommand: '',
-      cols: 120,
-      rows: 32
+      statusKey: 'disconnected',
+      term: null,
+      dataDisposable: null,
+      pendingCommand: ''
     };
     const tokenInput = document.getElementById('token');
     tokenInput.value = localStorage.getItem('agent-runtime-token') || 'dev-token';
 
-    const pageTitles = {
-      'terminal-view': ['Terminal', 'Interactive shell for login, auth flows, and CLI diagnostics.'],
-      'tools-view': ['CLI Manager', 'Install, update, and remove CLI entries used by shared runtimes.'],
-      'tenants-view': ['Tenants', 'Inspect tenant-scoped access boundaries and credential profiles.']
-    };
     const loginCommands = [
-      { label: 'Claude Code', command: 'claude login', tool: 'claude', env: 'CLAUDE_CONFIG_DIR' },
-      { label: 'Codex', command: 'codex login', tool: 'codex', env: 'CODEX_HOME' },
-      { label: 'Gemini', command: 'gemini', tool: 'gemini', env: 'GEMINI_HOME' },
-      { label: 'OpenCode', command: 'opencode auth login', tool: 'opencode', env: 'OPENCODE_HOME' },
-      { label: 'iFlow', command: 'iflow login', tool: 'iflow', env: 'IFLOW_HOME' },
-      { label: 'Kimi', command: 'kimi login', tool: 'kimi', env: 'KIMI_HOME' },
-      { label: 'Qoder', command: 'qodercli login', tool: 'qoder', env: 'QODER_HOME' }
+      { label: 'Claude Code', command: 'claude login', tool: 'claude' },
+      { label: 'Codex', command: 'codex login', tool: 'codex' },
+      { label: 'Gemini', command: 'gemini', tool: 'gemini' },
+      { label: 'iFlow', command: 'iflow login', tool: 'iflow' },
+      { label: 'OpenCode', command: 'opencode auth login', tool: 'opencode' },
+      { label: 'Kimi', command: 'kimi login', tool: 'kimi' },
+      { label: 'Qoder', command: 'qodercli login', tool: 'qoder' }
     ];
 
     function $(id) { return document.getElementById(id); }
+    function t(key) { return (messages[state.lang] && messages[state.lang][key]) || messages.en[key] || key; }
     function escapeHTML(value) {
       return String(value == null ? '' : value).replace(/[&<>"']/g, function(char) {
         return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char];
@@ -886,6 +983,92 @@ Credential state is isolated by tenant and profile.</pre>
       return response.json();
     }
 
+    function applyLanguage() {
+      document.documentElement.lang = state.lang === 'zh' ? 'zh-CN' : 'en';
+      document.querySelectorAll('[data-i18n]').forEach(function(el) {
+        el.textContent = t(el.dataset.i18n);
+      });
+      $('lang-zh').classList.toggle('active', state.lang === 'zh');
+      $('lang-en').classList.toggle('active', state.lang === 'en');
+      updatePageTitle();
+      renderLoginShortcuts();
+      renderTools();
+      renderToolCards();
+      renderTenants();
+      setConnected(state.connected, state.statusKey);
+      $('rail-health').textContent = $('health').textContent === 'ok' ? t('runtimeReady') : t('runtimeOffline');
+      if (state.term && state.term.buffer.active.length <= 2) {
+        state.term.clear();
+        state.term.writeln(t('terminalWelcome'));
+      }
+    }
+
+    function updatePageTitle() {
+      const titles = {
+        'terminal-view': [t('terminal'), t('terminalSubtitle')],
+        'tools-view': [t('cliManager'), t('cliSubtitle')],
+        'tenants-view': [t('tenants'), t('tenantsSubtitle')]
+      };
+      const value = titles[state.view] || titles['terminal-view'];
+      $('page-heading').textContent = value[0];
+      $('page-subtitle').textContent = value[1];
+    }
+
+    function initTerminal() {
+      if (!window.Terminal) {
+        showToast('xterm.js not loaded');
+        return;
+      }
+      state.term = new window.Terminal({
+        cursorBlink: true,
+        convertEol: true,
+        fontFamily: 'JetBrains Mono, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+        fontSize: 13,
+        lineHeight: 1.25,
+        scrollback: 5000,
+        theme: {
+          background: '#05070a',
+          foreground: '#d8dee9',
+          cursor: '#42ff9c',
+          selectionBackground: '#284b3c',
+          black: '#05070a',
+          red: '#ff5c73',
+          green: '#37e681',
+          yellow: '#f5bc4f',
+          blue: '#4c8dff',
+          magenta: '#b68cff',
+          cyan: '#28e0d4',
+          white: '#d8dee9'
+        }
+      });
+      state.term.open($('terminal-container'));
+      state.term.writeln(t('terminalWelcome'));
+      state.dataDisposable = state.term.onData(function(data) {
+        if (state.ws && state.ws.readyState === WebSocket.OPEN) {
+          state.ws.send(JSON.stringify({ type: 'input', data: data }));
+        }
+      });
+      if (window.ResizeObserver) {
+        new ResizeObserver(function() { resizeTerminal(); }).observe($('terminal-container'));
+      } else {
+        window.addEventListener('resize', resizeTerminal);
+      }
+      window.setTimeout(resizeTerminal, 0);
+    }
+
+    function resizeTerminal() {
+      if (!state.term) return { cols: 120, rows: 32 };
+      const container = $('terminal-container');
+      const rect = container.getBoundingClientRect();
+      const cols = Math.max(40, Math.floor(rect.width / 9));
+      const rows = Math.max(12, Math.floor(rect.height / 18));
+      state.term.resize(cols, rows);
+      if (state.ws && state.ws.readyState === WebSocket.OPEN) {
+        state.ws.send(JSON.stringify({ type: 'resize', cols: cols, rows: rows }));
+      }
+      return { cols: cols, rows: rows };
+    }
+
     async function refresh() {
       localStorage.setItem('agent-runtime-token', tokenInput.value.trim());
       const results = await Promise.allSettled([
@@ -908,12 +1091,12 @@ Credential state is isolated by tenant and profile.</pre>
       }
       state.tools = tools.status === 'fulfilled' ? tools.value.tools : [];
       state.tenants = tenants.status === 'fulfilled' ? tenants.value.tenants : [];
-      $('rail-health').textContent = health.status === 'fulfilled' ? 'Health OK' : 'Offline';
+      $('rail-health').textContent = health.status === 'fulfilled' ? t('runtimeReady') : t('runtimeOffline');
+      renderTerminalOptions();
+      renderLoginShortcuts();
       renderTools();
       renderToolCards();
       renderTenants();
-      renderTerminalOptions();
-      renderLoginShortcuts();
       updateContextLabels();
     }
 
@@ -923,69 +1106,6 @@ Credential state is isolated by tenant and profile.</pre>
       led.classList.remove('ok', 'bad');
       if (value === 'ok' || value === 'ready') led.classList.add('ok');
       if (value === 'error') led.classList.add('bad');
-    }
-
-    function renderTools() {
-      const body = $('tools');
-      if (!state.tools.length) {
-        body.innerHTML = '<tr><td colspan="6"><div class="empty">No CLI tools registered</div></td></tr>';
-        return;
-      }
-      body.innerHTML = state.tools.map(function(tool) {
-        return '<tr>' +
-          '<td><code>' + escapeHTML(tool.name) + '</code></td>' +
-          '<td>' + escapeHTML(tool.version || '-') + '</td>' +
-          '<td><code>' + escapeHTML(tool.path) + '</code></td>' +
-          '<td><code>' + escapeHTML(tool.credential_env || '-') + '</code></td>' +
-          '<td><code>' + escapeHTML(tool.credential_subdir || '-') + '</code></td>' +
-          '<td><button class="danger" type="button" data-delete-tool="' + escapeHTML(tool.name) + '">Delete</button></td>' +
-        '</tr>';
-      }).join('');
-      document.querySelectorAll('[data-delete-tool]').forEach(function(button) {
-        button.addEventListener('click', async function() {
-          await api('/api/tools/' + encodeURIComponent(button.dataset.deleteTool), { method: 'DELETE' });
-          showToast('Deleted CLI ' + button.dataset.deleteTool);
-          await refresh();
-        });
-      });
-    }
-
-    function renderToolCards() {
-      const container = $('cli-cards');
-      if (!state.tools.length) {
-        container.innerHTML = '<div class="empty">No CLI tools registered</div>';
-        return;
-      }
-      container.innerHTML = state.tools.slice(0, 6).map(function(tool) {
-        return '<div class="tool-card">' +
-          '<div class="tool-card-head">' +
-            '<span class="tool-name">' + escapeHTML(tool.name) + '</span>' +
-            '<span class="badge ok"><span class="led ok"></span>Registered</span>' +
-          '</div>' +
-          '<div class="tool-path">' + escapeHTML(tool.path) + '</div>' +
-          '<div class="tool-path">' + escapeHTML(tool.credential_env || 'HOME') + ' -> ' + escapeHTML(tool.credential_subdir || '.') + '</div>' +
-        '</div>';
-      }).join('');
-    }
-
-    function renderTenants() {
-      const container = $('tenants');
-      if (!state.tenants.length) {
-        container.innerHTML = '<div class="empty">No tenants configured</div>';
-        return;
-      }
-      container.innerHTML = state.tenants.map(function(tenant) {
-        return '<article class="tenant-card">' +
-          '<div class="tenant-name"><span>' + escapeHTML(tenant.id) + '</span>' +
-          '<span class="badge ' + (tenant.allow_terminal ? 'ok' : 'warn') + '">' + (tenant.allow_terminal ? 'Terminal allowed' : 'Terminal blocked') + '</span></div>' +
-          '<div class="kv">' +
-            '<div><strong>Subjects</strong><span>' + escapeHTML(join(tenant.subjects)) + '</span></div>' +
-            '<div><strong>Tools</strong><span>' + escapeHTML(join(tenant.allowed_tools)) + '</span></div>' +
-            '<div><strong>Workspaces</strong><span>' + escapeHTML(join(tenant.workspace_patterns)) + '</span></div>' +
-            '<div><strong>Profiles</strong><span>' + escapeHTML(join(tenant.credential_profiles)) + '</span></div>' +
-          '</div>' +
-        '</article>';
-      }).join('');
     }
 
     function renderTerminalOptions() {
@@ -1011,60 +1131,41 @@ Credential state is isolated by tenant and profile.</pre>
       updateContextLabels();
     }
 
-    function renderLoginShortcuts() {
-      const knownTools = new Set(state.tools.map(function(tool) { return tool.name; }));
-      $('login-shortcuts').innerHTML = loginCommands.map(function(item) {
-        const registered = knownTools.has(item.tool);
-        return '<button class="quick-button" type="button" data-login-command="' + escapeHTML(item.command) + '">' +
-          '<span><strong>' + escapeHTML(item.label) + '</strong><span>' + escapeHTML(item.command) + '</span></span>' +
-          '<span class="badge ' + (registered ? 'ok' : 'warn') + '">' + (registered ? 'Ready' : 'Add') + '</span>' +
-        '</button>';
-      }).join('');
-      document.querySelectorAll('[data-login-command]').forEach(function(button) {
-        button.addEventListener('click', function() { runCommand(button.dataset.loginCommand); });
-      });
-    }
-
     function updateContextLabels() {
       const context = ($('tenant').value || '-') + ' / ' + ($('workspace').value || '-');
       $('terminal-context').textContent = context + ' / ' + ($('profile').value || '-');
       $('rail-context').textContent = context;
     }
 
-    function calculateTerminalSize() {
-      const screen = $('terminal-screen');
-      const width = Math.max(360, screen.clientWidth - 30);
-      const height = Math.max(240, screen.clientHeight - 58);
-      state.cols = Math.max(40, Math.min(240, Math.floor(width / 8.4)));
-      state.rows = Math.max(12, Math.min(80, Math.floor(height / 18)));
-      $('screen-hint-right').textContent = state.cols + 'x' + state.rows;
-    }
-
     function terminalURL() {
-      calculateTerminalSize();
+      const size = resizeTerminal();
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const params = new URLSearchParams({
         token: tokenInput.value.trim(),
         tenant: $('tenant').value,
         workspace: $('workspace').value.trim(),
         credential_profile: $('profile').value.trim(),
-        cols: String(state.cols),
-        rows: String(state.rows)
+        cols: String(size.cols),
+        rows: String(size.rows)
       });
-      return protocol + '//' + window.location.host + '/api/terminal?' + params.toString();
+      return protocol + '//' + window.location.host + '/api/v1/terminal/ws?' + params.toString();
     }
 
     function connectTerminal() {
+      if (!state.term) initTerminal();
+      if (!state.term) return;
       if (state.ws) state.ws.close();
-      $('terminal-output').textContent = '';
+      state.term.clear();
+      state.term.writeln(t('terminalConnecting'));
       setConnected(false, 'connecting');
       localStorage.setItem('agent-runtime-token', tokenInput.value.trim());
       const ws = new WebSocket(terminalURL());
       state.ws = ws;
       ws.onopen = function() {
-        setConnected(true, 'Connected');
-        $('terminal-screen').focus();
-        sendResize();
+        setConnected(true, 'connected');
+        state.term.clear();
+        state.term.focus();
+        resizeTerminal();
         if (state.pendingCommand) {
           const command = state.pendingCommand;
           state.pendingCommand = '';
@@ -1074,56 +1175,38 @@ Credential state is isolated by tenant and profile.</pre>
       ws.onmessage = function(event) {
         try {
           const payload = JSON.parse(event.data);
-          if (payload.type === 'output') appendTerminal(payload.data || '');
-          if (payload.type === 'error') appendTerminal('\n[terminal error] ' + (payload.data || 'unknown error') + '\n');
+          if (payload.type === 'output') state.term.write(payload.data || '');
+          if (payload.type === 'error') state.term.writeln('\r\n[terminal error] ' + (payload.data || 'unknown error'));
           if (payload.type === 'exit') setConnected(false, 'exited');
         } catch (err) {
-          appendTerminal(String(event.data));
+          state.term.write(String(event.data));
         }
       };
       ws.onclose = function() {
         if (state.ws === ws) state.ws = null;
         setConnected(false, 'disconnected');
       };
-      ws.onerror = function() { setConnected(false, 'connection error'); };
+      ws.onerror = function() { setConnected(false, 'connectionError'); };
     }
 
-    function setConnected(connected, label) {
+    function disconnectTerminal() {
+      if (state.ws) state.ws.close();
+      state.ws = null;
+      setConnected(false, 'disconnected');
+    }
+
+    function setConnected(connected, statusKey) {
       state.connected = connected;
-      const terminalState = label || (connected ? 'Connected' : 'disconnected');
-      $('terminal-state').textContent = terminalState;
+      state.statusKey = statusKey || (connected ? 'connected' : 'disconnected');
+      $('terminal-state').textContent = t(state.statusKey);
       $('connect-terminal').disabled = connected;
       $('disconnect-terminal').disabled = !connected;
-      $('ctrl-c').disabled = !connected;
-      $('ctrl-l').disabled = !connected;
-      $('command-input').disabled = !connected;
-      $('send-command').disabled = !connected;
       $('terminal-led').classList.remove('ok', 'bad');
       if (connected) $('terminal-led').classList.add('ok');
-      if (terminalState === 'connection error') $('terminal-led').classList.add('bad');
+      if (state.statusKey === 'connectionError') $('terminal-led').classList.add('bad');
       $('connection-badge').classList.toggle('ok', connected);
       $('connection-badge').classList.toggle('warn', !connected);
-      $('screen-hint-left').textContent = connected ? 'Focused terminal accepts direct keyboard input and paste.' : 'Connect to start an interactive shell.';
-    }
-
-    function cleanTerminalText(data) {
-      let text = String(data || '');
-      if (text.indexOf('\x1b[2J') !== -1 || text.indexOf('\x1bc') !== -1) {
-        $('terminal-output').textContent = '';
-      }
-      text = text.replace(/\x1B\][^\x07]*(\x07|\x1B\\)/g, '');
-      text = text.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
-      text = text.replace(/\r\n/g, '\n').replace(/\r/g, '');
-      return text;
-    }
-
-    function appendTerminal(text) {
-      const output = $('terminal-output');
-      const cleaned = cleanTerminalText(text);
-      if (output.textContent.indexOf('Terminal is offline.') === 0) output.textContent = '';
-      output.textContent += cleaned;
-      const screen = $('terminal-screen');
-      screen.scrollTop = screen.scrollHeight;
+      renderLoginShortcuts();
     }
 
     function sendTerminal(data) {
@@ -1131,59 +1214,104 @@ Credential state is isolated by tenant and profile.</pre>
       state.ws.send(JSON.stringify({ type: 'input', data: data }));
     }
 
-    function sendResize() {
-      if (!state.ws || state.ws.readyState !== WebSocket.OPEN) return;
-      calculateTerminalSize();
-      state.ws.send(JSON.stringify({ type: 'resize', cols: state.cols, rows: state.rows }));
-    }
-
     function runCommand(command) {
       const payload = command + '\r';
       if (state.connected) {
         sendTerminal(payload);
-        $('terminal-screen').focus();
+        state.term.focus();
         return;
       }
       state.pendingCommand = payload;
       connectTerminal();
     }
 
-    function handleTerminalKey(event) {
-      if (!state.connected) return;
-      let data = '';
-      if (event.ctrlKey && !event.metaKey) {
-        const key = event.key.toLowerCase();
-        if (key === 'c') data = '\x03';
-        if (key === 'd') data = '\x04';
-        if (key === 'l') data = '\x0c';
-      } else if (event.key === 'Enter') data = '\r';
-      else if (event.key === 'Backspace') data = '\x7f';
-      else if (event.key === 'Tab') data = '\t';
-      else if (event.key === 'Escape') data = '\x1b';
-      else if (event.key === 'ArrowUp') data = '\x1b[A';
-      else if (event.key === 'ArrowDown') data = '\x1b[B';
-      else if (event.key === 'ArrowRight') data = '\x1b[C';
-      else if (event.key === 'ArrowLeft') data = '\x1b[D';
-      else if (event.key === 'Home') data = '\x1b[H';
-      else if (event.key === 'End') data = '\x1b[F';
-      else if (event.key === 'Delete') data = '\x1b[3~';
-      else if (!event.metaKey && !event.altKey && event.key.length === 1) data = event.key;
-      if (data) {
-        event.preventDefault();
-        sendTerminal(data);
+    function renderLoginShortcuts() {
+      const knownTools = new Set(state.tools.map(function(tool) { return tool.name; }));
+      $('login-shortcuts').innerHTML = loginCommands.map(function(item) {
+        const registered = knownTools.has(item.tool);
+        return '<button class="quick-button" type="button" data-login-command="' + escapeHTML(item.command) + '">' +
+          '<span><strong>' + escapeHTML(item.label) + '</strong><span>' + escapeHTML(item.command) + '</span></span>' +
+          '<span class="badge ' + (registered ? 'ok' : 'warn') + '">' + (registered ? t('readyLabel') : t('addLabel')) + '</span>' +
+        '</button>';
+      }).join('');
+      document.querySelectorAll('[data-login-command]').forEach(function(button) {
+        button.addEventListener('click', function() { runCommand(button.dataset.loginCommand); });
+      });
+    }
+
+    function renderToolCards() {
+      const container = $('cli-cards');
+      if (!state.tools.length) {
+        container.innerHTML = '<div class="empty">' + escapeHTML(t('noTools')) + '</div>';
+        return;
       }
+      container.innerHTML = state.tools.slice(0, 6).map(function(tool) {
+        return '<div class="tool-card">' +
+          '<div class="tool-card-head">' +
+            '<span class="tool-name">' + escapeHTML(tool.name) + '</span>' +
+            '<span class="badge ok"><span class="led ok"></span>' + escapeHTML(t('registered')) + '</span>' +
+          '</div>' +
+          '<div class="tool-path">' + escapeHTML(tool.path) + '</div>' +
+          '<div class="tool-path">' + escapeHTML(tool.credential_env || 'HOME') + ' -> ' + escapeHTML(tool.credential_subdir || '.') + '</div>' +
+        '</div>';
+      }).join('');
+    }
+
+    function renderTools() {
+      const body = $('tools');
+      if (!state.tools.length) {
+        body.innerHTML = '<tr><td colspan="6"><div class="empty">' + escapeHTML(t('noTools')) + '</div></td></tr>';
+        return;
+      }
+      body.innerHTML = state.tools.map(function(tool) {
+        return '<tr>' +
+          '<td><code>' + escapeHTML(tool.name) + '</code></td>' +
+          '<td>' + escapeHTML(tool.version || '-') + '</td>' +
+          '<td><code>' + escapeHTML(tool.path) + '</code></td>' +
+          '<td><code>' + escapeHTML(tool.credential_env || '-') + '</code></td>' +
+          '<td><code>' + escapeHTML(tool.credential_subdir || '-') + '</code></td>' +
+          '<td><button class="danger" type="button" data-delete-tool="' + escapeHTML(tool.name) + '">' + escapeHTML(t('delete')) + '</button></td>' +
+        '</tr>';
+      }).join('');
+      document.querySelectorAll('[data-delete-tool]').forEach(function(button) {
+        button.addEventListener('click', async function() {
+          await api('/api/tools/' + encodeURIComponent(button.dataset.deleteTool), { method: 'DELETE' });
+          showToast(t('cliDeleted') + ': ' + button.dataset.deleteTool);
+          await refresh();
+        });
+      });
+    }
+
+    function renderTenants() {
+      const container = $('tenants-list');
+      if (!state.tenants.length) {
+        container.innerHTML = '<div class="empty">' + escapeHTML(t('noTenants')) + '</div>';
+        return;
+      }
+      container.innerHTML = state.tenants.map(function(tenant) {
+        return '<article class="tenant-card">' +
+          '<div class="tenant-name"><span>' + escapeHTML(tenant.id) + '</span>' +
+          '<span class="badge ' + (tenant.allow_terminal ? 'ok' : 'warn') + '">' + escapeHTML(tenant.allow_terminal ? t('terminalAllowed') : t('terminalBlocked')) + '</span></div>' +
+          '<div class="kv">' +
+            '<div><strong>' + escapeHTML(t('subjects')) + '</strong><span>' + escapeHTML(join(tenant.subjects)) + '</span></div>' +
+            '<div><strong>' + escapeHTML(t('tools')) + '</strong><span>' + escapeHTML(join(tenant.allowed_tools)) + '</span></div>' +
+            '<div><strong>' + escapeHTML(t('workspaces')) + '</strong><span>' + escapeHTML(join(tenant.workspace_patterns)) + '</span></div>' +
+            '<div><strong>' + escapeHTML(t('profiles')) + '</strong><span>' + escapeHTML(join(tenant.credential_profiles)) + '</span></div>' +
+          '</div>' +
+        '</article>';
+      }).join('');
     }
 
     function switchView(viewID) {
+      state.view = viewID;
       document.querySelectorAll('.nav-button').forEach(function(item) {
         item.classList.toggle('active', item.dataset.view === viewID);
       });
       document.querySelectorAll('.view').forEach(function(item) {
         item.classList.toggle('active', item.id === viewID);
       });
-      const title = pageTitles[viewID] || pageTitles['terminal-view'];
-      $('page-heading').textContent = title[0];
-      $('page-subtitle').textContent = title[1];
+      updatePageTitle();
+      if (viewID === 'terminal-view') window.setTimeout(resizeTerminal, 0);
     }
 
     document.querySelectorAll('[data-view]').forEach(function(button) {
@@ -1192,36 +1320,22 @@ Credential state is isolated by tenant and profile.</pre>
     document.querySelectorAll('[data-view-jump]').forEach(function(button) {
       button.addEventListener('click', function() { switchView(button.dataset.viewJump); });
     });
+    document.querySelectorAll('[data-lang]').forEach(function(button) {
+      button.addEventListener('click', function() {
+        state.lang = button.dataset.lang;
+        localStorage.setItem('agent-runtime-lang', state.lang);
+        applyLanguage();
+      });
+    });
     $('refresh').addEventListener('click', function() {
-      refresh().then(function() { showToast('Runtime status refreshed'); }).catch(function(err) { showToast(err.message); });
+      refresh().then(function() { showToast(t('refreshed')); }).catch(function(err) { showToast(err.message); });
     });
     $('tenant').addEventListener('change', updateProfileOptions);
     $('workspace').addEventListener('input', updateContextLabels);
     $('profile').addEventListener('input', updateContextLabels);
     $('connect-terminal').addEventListener('click', connectTerminal);
-    $('disconnect-terminal').addEventListener('click', function() { if (state.ws) state.ws.close(); });
-    $('clear-terminal').addEventListener('click', function() { $('terminal-output').textContent = ''; });
-    $('ctrl-c').addEventListener('click', function() { sendTerminal('\x03'); $('terminal-screen').focus(); });
-    $('ctrl-l').addEventListener('click', function() { sendTerminal('\x0c'); $('terminal-screen').focus(); });
-    $('terminal-screen').addEventListener('keydown', handleTerminalKey);
-    $('terminal-screen').addEventListener('paste', function(event) {
-      if (!state.connected) return;
-      event.preventDefault();
-      sendTerminal((event.clipboardData || window.clipboardData).getData('text'));
-    });
-    $('command-input').addEventListener('keydown', function(event) {
-      if (event.key === 'Enter') {
-        event.preventDefault();
-        $('send-command').click();
-      }
-    });
-    $('send-command').addEventListener('click', function() {
-      const input = $('command-input');
-      if (!input.value.trim()) return;
-      sendTerminal(input.value + '\r');
-      input.value = '';
-      $('terminal-screen').focus();
-    });
+    $('disconnect-terminal').addEventListener('click', disconnectTerminal);
+    $('clear-terminal').addEventListener('click', function() { if (state.term) state.term.clear(); });
     $('save-tool').addEventListener('click', async function() {
       await api('/api/tools', {
         method: 'POST',
@@ -1235,20 +1349,16 @@ Credential state is isolated by tenant and profile.</pre>
         })
       });
       ['tool-name', 'tool-path', 'tool-version', 'tool-env', 'tool-subdir'].forEach(function(id) { $(id).value = ''; });
-      showToast('CLI saved');
+      showToast(t('cliSaved'));
       await refresh();
     });
 
-    calculateTerminalSize();
-    if (window.ResizeObserver) {
-      new ResizeObserver(function() { sendResize(); }).observe($('terminal-screen'));
-    } else {
-      window.addEventListener('resize', sendResize);
-    }
+    initTerminal();
+    applyLanguage();
     refresh().catch(function(err) {
       setMetric('health', 'health-led', 'error');
       setMetric('ready', 'ready-led', 'error');
-      appendTerminal('[ui error] ' + err.message + '\n');
+      showToast(err.message);
     });
   </script>
 </body>

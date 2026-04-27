@@ -45,8 +45,10 @@ func NewServer(options Options) http.Handler {
 	mux.HandleFunc("DELETE /api/tools/{name}", server.deleteTool)
 	mux.HandleFunc("GET /api/tenants", server.listTenants)
 	mux.HandleFunc("GET /api/terminal", server.terminalSession)
+	mux.HandleFunc("GET /api/v1/terminal/ws", server.terminalSession)
 	mux.HandleFunc("POST /api/jobs", server.createJob)
 	mux.HandleFunc("/api/jobs/", server.jobByID)
+	mux.Handle("GET /assets/", http.FileServerFS(assetsFS))
 	return mux
 }
 

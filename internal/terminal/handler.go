@@ -157,7 +157,7 @@ func (h *Handler) runSession(r *http.Request, conn *websocket.Conn, spec session
 	}
 
 	ctx := r.Context()
-	cmd := exec.CommandContext(ctx, shell)
+	cmd := exec.CommandContext(ctx, shell, "-l")
 	cmd.Dir = spec.WorkingDir
 	cmd.Env = h.sessionEnv(spec)
 
@@ -219,6 +219,8 @@ func (h *Handler) sessionEnv(spec sessionSpec) []string {
 	overrides := map[string]string{
 		"HOME":                             spec.CredentialRoot,
 		"XDG_CONFIG_HOME":                  filepath.Join(spec.CredentialRoot, ".config"),
+		"TERM":                             "xterm-256color",
+		"COLORTERM":                        "truecolor",
 		"AGENT_RUNTIME_TENANT":             spec.TenantID,
 		"AGENT_RUNTIME_SUBJECT":            spec.SubjectID,
 		"AGENT_RUNTIME_WORKSPACE":          spec.WorkspaceID,
