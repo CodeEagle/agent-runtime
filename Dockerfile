@@ -1,4 +1,6 @@
-FROM golang:1.24-alpine AS build
+ARG TARGETPLATFORM=linux/amd64
+
+FROM --platform=$TARGETPLATFORM golang:1.24-alpine AS build
 
 WORKDIR /src
 COPY go.mod ./
@@ -7,7 +9,7 @@ COPY internal ./internal
 
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/agent-runtime ./cmd/agent-runtime
 
-FROM alpine:3.21
+FROM --platform=$TARGETPLATFORM alpine:3.21
 
 RUN addgroup -S agent-runtime && adduser -S -G agent-runtime agent-runtime \
     && mkdir -p /data /etc/agent-runtime \
