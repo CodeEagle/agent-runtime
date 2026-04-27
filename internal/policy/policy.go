@@ -9,6 +9,7 @@ import (
 type Policy struct {
 	SubjectID                 string
 	TenantID                  string
+	Role                      string
 	AllowedTools              []string
 	AllowedWorkspaces         []string
 	AllowedCredentialProfiles []string
@@ -32,7 +33,7 @@ type TerminalRequest struct {
 }
 
 func (p Policy) AuthorizeJob(req JobRequest) error {
-	if req.TenantID != p.TenantID {
+	if !p.IsAdmin() && req.TenantID != p.TenantID {
 		return fmt.Errorf("tenant %q is not allowed for subject %q", req.TenantID, p.SubjectID)
 	}
 	if !matchesAny(p.AllowedTools, req.Tool) {
@@ -57,7 +58,7 @@ func (p Policy) AuthorizeTerminal(req TerminalRequest) error {
 	if !p.AllowTerminal {
 		return fmt.Errorf("terminal access is not allowed for subject %q", p.SubjectID)
 	}
-	if req.TenantID != p.TenantID {
+	if !p.IsAdmin() && req.TenantID != p.TenantID {
 		return fmt.Errorf("tenant %q is not allowed for subject %q", req.TenantID, p.SubjectID)
 	}
 	if !matchesAny(p.AllowedWorkspaces, req.WorkspaceID) {
@@ -65,6 +66,30 @@ func (p Policy) AuthorizeTerminal(req TerminalRequest) error {
 	}
 	if !matchesAny(p.AllowedCredentialProfiles, req.CredentialProfile) {
 		return fmt.Errorf("credential profile %q is not allowed for subject %q", req.CredentialProfile, p.SubjectID)
+	}
+	return nil
+}
+
+func (p Policy) IsAdmin() bool {
+	return p.Role == "admin"
+}
+
+func (p Policy) AuthorizeTenant(tenantID string) error {
+	if p.IsAdmin() || tenantID == p.TenantID {
+		return nil
+	}
+	return fmt.Errorf("tenant %q is not allowed for subject %q", tenantID, p.SubjectID)
+}
+
+func (p Policy) AuthorizeTenantProfile(tenantID string, profileID string) error {
+	if err := p.AuthorizeTenant(tenantID); err != nil {
+		return err
+	}
+	if p.IsAdmin() {
+		return nil
+	}
+	if !matchesAny(p.AllowedCredentialProfiles, profileID) {
+		return fmt.Errorf("credential profile %q is not allowed for subject %q", profileID, p.SubjectID)
 	}
 	return nil
 }

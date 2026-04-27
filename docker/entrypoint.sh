@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-mkdir -p /data /data/bin
+mkdir -p /data /data/bin /data/npm-global
 
 if [ "$(id -u)" = "0" ]; then
   chown -R agent-runtime:agent-runtime /data

@@ -56,6 +56,18 @@
       "token": "dev-token",
       "subject": "service-account:local-dev",
       "tenant": "team-a",
+      "role": "admin",
+      "allowed_tools": ["codex", "claude", "gemini", "opencode", "iflow", "kimi", "qoder"],
+      "allowed_workspaces": ["repo-*"],
+      "allowed_credential_profiles": ["team-default"],
+      "allow_terminal": true,
+      "max_job_seconds": 900
+    },
+    {
+      "token": "team-a-token",
+      "subject": "tenant-user:team-a",
+      "tenant": "team-a",
+      "role": "tenant",
       "allowed_tools": ["codex", "claude", "gemini", "opencode", "iflow", "kimi", "qoder"],
       "allowed_workspaces": ["repo-*"],
       "allowed_credential_profiles": ["team-default"],

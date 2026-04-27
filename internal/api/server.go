@@ -4,9 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 
+	"agent-runtime/internal/files"
 	"agent-runtime/internal/jobs"
+	"agent-runtime/internal/policy"
 	"agent-runtime/internal/tenants"
 	"agent-runtime/internal/tools"
 )
@@ -17,33 +20,47 @@ type ToolManager interface {
 	Delete(name string) error
 }
 
-type TenantLister interface {
+type TenantManager interface {
+	Lookup(token string) (policy.Policy, bool)
 	List() []tenants.Summary
+	ListFor(policy.Policy) []tenants.Summary
+	ListTokens() []tenants.TokenSummary
+	UpsertToken(tenants.TokenRequest) (tenants.TokenSummary, error)
+	DeleteToken(id string) error
 }
 
 type Options struct {
-	Jobs     *jobs.Manager
-	Tools    ToolManager
-	Tenants  TenantLister
-	Terminal http.Handler
+	Jobs                     *jobs.Manager
+	Tools                    ToolManager
+	Tenants                  TenantManager
+	Terminal                 http.Handler
+	Files                    files.Explorer
+	ResolveCredentialProfile func(tenantID string, profileID string) (string, error)
 }
 
 func NewServer(options Options) http.Handler {
 	server := &server{
-		jobs:     options.Jobs,
-		tools:    options.Tools,
-		tenants:  options.Tenants,
-		terminal: options.Terminal,
+		jobs:                     options.Jobs,
+		tools:                    options.Tools,
+		tenants:                  options.Tenants,
+		terminal:                 options.Terminal,
+		files:                    options.Files,
+		resolveCredentialProfile: options.ResolveCredentialProfile,
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{$}", server.webUI)
 	mux.HandleFunc("GET /api/health", server.health)
 	mux.HandleFunc("GET /api/ready", server.ready)
 	mux.HandleFunc("GET /api/status", server.status)
+	mux.HandleFunc("GET /api/session", server.session)
 	mux.HandleFunc("GET /api/tools", server.listTools)
 	mux.HandleFunc("POST /api/tools", server.upsertTool)
 	mux.HandleFunc("DELETE /api/tools/{name}", server.deleteTool)
 	mux.HandleFunc("GET /api/tenants", server.listTenants)
+	mux.HandleFunc("GET /api/tokens", server.listTokens)
+	mux.HandleFunc("POST /api/tokens", server.upsertToken)
+	mux.HandleFunc("DELETE /api/tokens/{id}", server.deleteToken)
+	mux.HandleFunc("GET /api/files", server.listFiles)
 	mux.HandleFunc("GET /api/terminal", server.terminalSession)
 	mux.HandleFunc("GET /api/v1/terminal/ws", server.terminalSession)
 	mux.HandleFunc("POST /api/jobs", server.createJob)
@@ -53,10 +70,12 @@ func NewServer(options Options) http.Handler {
 }
 
 type server struct {
-	jobs     *jobs.Manager
-	tools    ToolManager
-	tenants  TenantLister
-	terminal http.Handler
+	jobs                     *jobs.Manager
+	tools                    ToolManager
+	tenants                  TenantManager
+	terminal                 http.Handler
+	files                    files.Explorer
+	resolveCredentialProfile func(tenantID string, profileID string) (string, error)
 }
 
 func (s *server) webUI(w http.ResponseWriter, r *http.Request) {
@@ -103,12 +122,55 @@ func (s *server) listTools(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusServiceUnavailable, "tool registry is not configured")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"tools": s.tools.List()})
+	searchPath := tools.RuntimePath("", os.Getenv("PATH"))
+	query := r.URL.Query()
+	if query.Get("tenant") != "" && query.Get("credential_profile") != "" {
+		p, ok := s.authenticate(r)
+		if !ok {
+			writeError(w, http.StatusUnauthorized, "missing or invalid bearer token")
+			return
+		}
+		tenantID := query.Get("tenant")
+		profileID := query.Get("credential_profile")
+		if err := p.AuthorizeTenantProfile(tenantID, profileID); err != nil {
+			writeError(w, http.StatusForbidden, err.Error())
+			return
+		}
+		if s.resolveCredentialProfile != nil {
+			credentialRoot, err := s.resolveCredentialProfile(tenantID, profileID)
+			if err != nil {
+				writeError(w, http.StatusBadRequest, fmt.Sprintf("resolve credential profile: %v", err))
+				return
+			}
+			searchPath = tools.RuntimePath(credentialRoot, os.Getenv("PATH"))
+		}
+	}
+	items := s.tools.List()
+	out := make([]toolResponse, 0, len(items))
+	for _, item := range items {
+		health := tools.CheckHealth(item, searchPath)
+		out = append(out, toolResponse{
+			Name:             item.Name,
+			Path:             item.Path,
+			Version:          item.Version,
+			CredentialEnv:    item.CredentialEnv,
+			CredentialSubdir: item.CredentialSubdir,
+			Available:        health.Available,
+			Health:           health.Health,
+			ResolvedPath:     health.ResolvedPath,
+			DetectedVersion:  health.DetectedVersion,
+			Error:            health.Error,
+		})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"tools": out})
 }
 
 func (s *server) upsertTool(w http.ResponseWriter, r *http.Request) {
 	if s.tools == nil {
 		writeError(w, http.StatusServiceUnavailable, "tool registry is not configured")
+		return
+	}
+	if !s.requireAdmin(w, r) {
 		return
 	}
 	var tool tools.Tool
@@ -130,6 +192,9 @@ func (s *server) deleteTool(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusServiceUnavailable, "tool registry is not configured")
 		return
 	}
+	if !s.requireAdmin(w, r) {
+		return
+	}
 	name := r.PathValue("name")
 	if err := s.tools.Delete(name); err != nil {
 		status := http.StatusInternalServerError
@@ -147,7 +212,95 @@ func (s *server) listTenants(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusServiceUnavailable, "tenant store is not configured")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"tenants": s.tenants.List()})
+	p, ok := s.authenticate(r)
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "missing or invalid bearer token")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"tenants": s.tenants.ListFor(p)})
+}
+
+func (s *server) session(w http.ResponseWriter, r *http.Request) {
+	p, ok := s.authenticate(r)
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "missing or invalid bearer token")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"subject":                     p.SubjectID,
+		"tenant":                      p.TenantID,
+		"role":                        p.Role,
+		"admin":                       p.IsAdmin(),
+		"allowed_tools":               p.AllowedTools,
+		"allowed_workspaces":          p.AllowedWorkspaces,
+		"allowed_credential_profiles": p.AllowedCredentialProfiles,
+		"allow_terminal":              p.AllowTerminal,
+		"max_job_seconds":             int(p.MaxJobDuration.Seconds()),
+	})
+}
+
+func (s *server) listTokens(w http.ResponseWriter, r *http.Request) {
+	if !s.requireAdmin(w, r) {
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"tokens": s.tenants.ListTokens()})
+}
+
+func (s *server) upsertToken(w http.ResponseWriter, r *http.Request) {
+	if !s.requireAdmin(w, r) {
+		return
+	}
+	var req tenants.TokenRequest
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("invalid token request: %v", err))
+		return
+	}
+	token, err := s.tenants.UpsertToken(req)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusCreated, token)
+}
+
+func (s *server) deleteToken(w http.ResponseWriter, r *http.Request) {
+	if !s.requireAdmin(w, r) {
+		return
+	}
+	if err := s.tenants.DeleteToken(r.PathValue("id")); err != nil {
+		status := http.StatusInternalServerError
+		if strings.Contains(err.Error(), "not found") {
+			status = http.StatusNotFound
+		}
+		writeError(w, status, err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *server) listFiles(w http.ResponseWriter, r *http.Request) {
+	p, ok := s.authenticate(r)
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "missing or invalid bearer token")
+		return
+	}
+	query := r.URL.Query()
+	tenantID := query.Get("tenant")
+	if tenantID == "" {
+		tenantID = p.TenantID
+	}
+	if err := p.AuthorizeTenant(tenantID); err != nil {
+		writeError(w, http.StatusForbidden, err.Error())
+		return
+	}
+	listing, err := s.files.List(tenantID, query.Get("space"), query.Get("path"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, listing)
 }
 
 func (s *server) terminalSession(w http.ResponseWriter, r *http.Request) {
@@ -250,6 +403,43 @@ func bearerToken(r *http.Request) (string, bool) {
 	}
 	token := strings.TrimSpace(strings.TrimPrefix(header, prefix))
 	return token, token != ""
+}
+
+func (s *server) authenticate(r *http.Request) (policy.Policy, bool) {
+	if s.tenants == nil {
+		return policy.Policy{}, false
+	}
+	token, ok := bearerToken(r)
+	if !ok {
+		return policy.Policy{}, false
+	}
+	return s.tenants.Lookup(token)
+}
+
+func (s *server) requireAdmin(w http.ResponseWriter, r *http.Request) bool {
+	p, ok := s.authenticate(r)
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "missing or invalid bearer token")
+		return false
+	}
+	if !p.IsAdmin() {
+		writeError(w, http.StatusForbidden, "admin role is required")
+		return false
+	}
+	return true
+}
+
+type toolResponse struct {
+	Name             string `json:"name"`
+	Path             string `json:"path"`
+	Version          string `json:"version"`
+	CredentialEnv    string `json:"credential_env,omitempty"`
+	CredentialSubdir string `json:"credential_subdir,omitempty"`
+	Available        bool   `json:"available"`
+	Health           string `json:"health"`
+	ResolvedPath     string `json:"resolved_path,omitempty"`
+	DetectedVersion  string `json:"detected_version,omitempty"`
+	Error            string `json:"error,omitempty"`
 }
 
 func writeJSON(w http.ResponseWriter, status int, value any) {

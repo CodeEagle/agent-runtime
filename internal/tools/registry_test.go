@@ -83,3 +83,28 @@ func TestPersistentRegistryIgnoresLegacyEnvPlaceholder(t *testing.T) {
 		t.Fatalf("expected default tool to replace legacy placeholder, got %#v", tool)
 	}
 }
+
+func TestPersistentRegistryIgnoresLegacyManualTool(t *testing.T) {
+	storePath := t.TempDir() + "/registry.json"
+	if err := os.WriteFile(storePath, []byte(`{
+		"tools": [
+			{"name": "gemini", "path": "/usr/local/bin/gemini", "version": "manual", "credential_env": "GEMINI_HOME", "credential_subdir": ".gemini"}
+		]
+	}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	reloaded, err := tools.NewPersistentRegistry([]tools.Tool{
+		{Name: "gemini", Path: "gemini", Version: "official", CredentialSubdir: ".gemini"},
+	}, storePath)
+	if err != nil {
+		t.Fatalf("reload persistent registry: %v", err)
+	}
+	tool, ok := reloaded.Resolve("gemini")
+	if !ok {
+		t.Fatalf("expected tool to resolve")
+	}
+	if tool.Path != "gemini" || tool.Version != "official" {
+		t.Fatalf("expected default tool to replace legacy manual entry, got %#v", tool)
+	}
+}

@@ -157,7 +157,7 @@ func (h *Handler) runSession(r *http.Request, conn *websocket.Conn, spec session
 	}
 
 	ctx := r.Context()
-	cmd := exec.CommandContext(ctx, shell, "-l")
+	cmd := exec.CommandContext(ctx, shell)
 	cmd.Dir = spec.WorkingDir
 	cmd.Env = h.sessionEnv(spec)
 
@@ -219,7 +219,8 @@ func (h *Handler) sessionEnv(spec sessionSpec) []string {
 	overrides := map[string]string{
 		"HOME":                             spec.CredentialRoot,
 		"XDG_CONFIG_HOME":                  filepath.Join(spec.CredentialRoot, ".config"),
-		"PATH":                             credentialPath(spec.CredentialRoot, os.Getenv("PATH")),
+		"NPM_CONFIG_PREFIX":                "/data/npm-global",
+		"PATH":                             tools.RuntimePath(spec.CredentialRoot, os.Getenv("PATH")),
 		"TERM":                             "xterm-256color",
 		"COLORTERM":                        "truecolor",
 		"AGENT_RUNTIME_TENANT":             spec.TenantID,
@@ -259,20 +260,6 @@ func (h *Handler) sessionEnv(spec sessionSpec) []string {
 		}
 	}
 	return env
-}
-
-func credentialPath(home string, base string) string {
-	parts := []string{
-		filepath.Join(home, ".local", "bin"),
-		filepath.Join(home, "bin"),
-		filepath.Join(home, ".npm-global", "bin"),
-		filepath.Join(home, ".bun", "bin"),
-		"/data/bin",
-	}
-	if base != "" {
-		parts = append(parts, base)
-	}
-	return strings.Join(parts, ":")
 }
 
 type wsMessage struct {

@@ -32,6 +32,7 @@ type TokenConfig struct {
 	Token                     string        `json:"token"`
 	SubjectID                 string        `json:"subject"`
 	TenantID                  string        `json:"tenant"`
+	Role                      string        `json:"role"`
 	AllowedTools              []string      `json:"allowed_tools"`
 	AllowedWorkspaces         []string      `json:"allowed_workspaces"`
 	AllowedCredentialProfiles []string      `json:"allowed_credential_profiles"`
@@ -88,10 +89,14 @@ func Load(path string) (Config, error) {
 
 	for i := range cfg.Tokens {
 		token := &cfg.Tokens[i]
+		if token.Role == "" {
+			token.Role = "tenant"
+		}
 		duration := time.Duration(token.MaxJobSeconds) * time.Second
 		token.Policy = policy.Policy{
 			SubjectID:                 token.SubjectID,
 			TenantID:                  token.TenantID,
+			Role:                      token.Role,
 			AllowedTools:              append([]string(nil), token.AllowedTools...),
 			AllowedWorkspaces:         append([]string(nil), token.AllowedWorkspaces...),
 			AllowedCredentialProfiles: append([]string(nil), token.AllowedCredentialProfiles...),

@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"time"
 
@@ -203,7 +202,8 @@ func (m *Manager) Create(ctx context.Context, req CreateRequest) (Job, error) {
 	env := copyEnv(req.Env)
 	env["HOME"] = credentialRoot
 	env["XDG_CONFIG_HOME"] = filepath.Join(credentialRoot, ".config")
-	env["PATH"] = credentialPath(credentialRoot, os.Getenv("PATH"))
+	env["NPM_CONFIG_PREFIX"] = "/data/npm-global"
+	env["PATH"] = tools.RuntimePath(credentialRoot, os.Getenv("PATH"))
 	if tool.CredentialEnv != "" {
 		credentialPath := credentialRoot
 		if tool.CredentialSubdir != "" {
@@ -334,18 +334,4 @@ func newID() string {
 		return hex.EncodeToString(bytes[:])
 	}
 	return fmt.Sprintf("%d", time.Now().UnixNano())
-}
-
-func credentialPath(home string, base string) string {
-	parts := []string{
-		filepath.Join(home, ".local", "bin"),
-		filepath.Join(home, "bin"),
-		filepath.Join(home, ".npm-global", "bin"),
-		filepath.Join(home, ".bun", "bin"),
-		"/data/bin",
-	}
-	if base != "" {
-		parts = append(parts, base)
-	}
-	return strings.Join(parts, ":")
 }

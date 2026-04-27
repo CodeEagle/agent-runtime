@@ -6,11 +6,14 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"agent-runtime/internal/api"
+	"agent-runtime/internal/files"
 	"agent-runtime/internal/jobs"
 	"agent-runtime/internal/policy"
 	"agent-runtime/internal/tenants"
@@ -66,7 +69,13 @@ func TestServerServesWebUIAtRoot(t *testing.T) {
 		t.Fatalf("expected UI to hide job creation controls, got %q", body)
 	}
 	if !strings.Contains(body, "Terminal") || !strings.Contains(body, "CLI Manager") {
-		t.Fatalf("expected terminal and CLI manager tabs, got %q", body)
+		t.Fatalf("expected terminal and inline CLI manager, got %q", body)
+	}
+	if strings.Contains(body, `data-view="tools-view"`) || strings.Contains(body, `id="tools-view"`) {
+		t.Fatalf("expected CLI manager to live inside terminal view, got %q", body)
+	}
+	if !strings.Contains(body, "/api/files") || !strings.Contains(body, "File Explorer") {
+		t.Fatalf("expected UI to include tenant file explorer, got %q", body)
 	}
 	if !strings.Contains(body, "/assets/xterm/xterm.js") {
 		t.Fatalf("expected UI to load vendored xterm assets, got %q", body)
@@ -115,6 +124,7 @@ func TestServerAddsAndDeletesTools(t *testing.T) {
 		"credential_subdir": ".claude"
 	}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/tools", bytes.NewReader(payload))
+	req.Header.Set("Authorization", "Bearer token-1")
 	res := httptest.NewRecorder()
 	handler.ServeHTTP(res, req)
 	if res.Code != http.StatusCreated {
@@ -122,6 +132,7 @@ func TestServerAddsAndDeletesTools(t *testing.T) {
 	}
 
 	req = httptest.NewRequest(http.MethodDelete, "/api/tools/claude", nil)
+	req.Header.Set("Authorization", "Bearer token-1")
 	res = httptest.NewRecorder()
 	handler.ServeHTTP(res, req)
 	if res.Code != http.StatusNoContent {
@@ -133,6 +144,7 @@ func TestServerListsTenants(t *testing.T) {
 	handler := newTestServer(t)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/tenants", nil)
+	req.Header.Set("Authorization", "Bearer token-1")
 	res := httptest.NewRecorder()
 	handler.ServeHTTP(res, req)
 	if res.Code != http.StatusOK {
@@ -150,6 +162,116 @@ func TestServerListsTenants(t *testing.T) {
 	}
 	if !body.Tenants[0].AllowTerminal {
 		t.Fatalf("expected terminal permission to be exposed: %#v", body.Tenants[0])
+	}
+}
+
+func TestServerScopesTenantsByRole(t *testing.T) {
+	registry := tools.NewRegistry(nil)
+	tenantStore := tenants.NewStore(map[string]policy.Policy{
+		"admin-token": {
+			SubjectID:                 "admin:test",
+			TenantID:                  "team-a",
+			Role:                      "admin",
+			AllowedCredentialProfiles: []string{"*"},
+			AllowTerminal:             true,
+		},
+		"team-a-token": {
+			SubjectID:                 "tenant:team-a",
+			TenantID:                  "team-a",
+			Role:                      "tenant",
+			AllowedCredentialProfiles: []string{"default"},
+		},
+		"team-b-token": {
+			SubjectID:                 "tenant:team-b",
+			TenantID:                  "team-b",
+			Role:                      "tenant",
+			AllowedCredentialProfiles: []string{"default"},
+		},
+	})
+	handler := api.NewServer(api.Options{Tools: registry, Tenants: tenantStore})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/tenants", nil)
+	req.Header.Set("Authorization", "Bearer admin-token")
+	res := httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected admin status 200, got %d: %s", res.Code, res.Body.String())
+	}
+	var adminBody struct {
+		Tenants []tenants.Summary `json:"tenants"`
+	}
+	if err := json.Unmarshal(res.Body.Bytes(), &adminBody); err != nil {
+		t.Fatalf("decode admin response: %v", err)
+	}
+	if len(adminBody.Tenants) != 2 {
+		t.Fatalf("expected admin to see two tenants, got %#v", adminBody.Tenants)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/tenants", nil)
+	req.Header.Set("Authorization", "Bearer team-a-token")
+	res = httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected tenant status 200, got %d: %s", res.Code, res.Body.String())
+	}
+	var tenantBody struct {
+		Tenants []tenants.Summary `json:"tenants"`
+	}
+	if err := json.Unmarshal(res.Body.Bytes(), &tenantBody); err != nil {
+		t.Fatalf("decode tenant response: %v", err)
+	}
+	if len(tenantBody.Tenants) != 1 || tenantBody.Tenants[0].ID != "team-a" {
+		t.Fatalf("expected tenant to see only team-a, got %#v", tenantBody.Tenants)
+	}
+	if len(tenantBody.Tenants[0].Subjects) != 1 || tenantBody.Tenants[0].Subjects[0] != "tenant:team-a" {
+		t.Fatalf("expected tenant summary to expose only current subject, got %#v", tenantBody.Tenants[0].Subjects)
+	}
+}
+
+func TestServerListsFilesWithinTenantBoundary(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "team-a", "workspaces", "repo-main"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "team-a", "workspaces", "repo-main", "README.md"), []byte("ok"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "team-b", "workspaces"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	tenantStore := tenants.NewStore(map[string]policy.Policy{
+		"team-a-token": {
+			SubjectID: "tenant:team-a",
+			TenantID:  "team-a",
+			Role:      "tenant",
+		},
+	})
+	handler := api.NewServer(api.Options{
+		Tenants: tenantStore,
+		Files:   files.NewExplorer(root),
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/files?tenant=team-a&space=workspaces&path=/", nil)
+	req.Header.Set("Authorization", "Bearer team-a-token")
+	res := httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", res.Code, res.Body.String())
+	}
+	var body files.Listing
+	if err := json.Unmarshal(res.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode listing: %v", err)
+	}
+	if len(body.Entries) != 1 || body.Entries[0].Name != "repo-main" {
+		t.Fatalf("expected repo-main entry, got %#v", body.Entries)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/files?tenant=team-b&space=workspaces&path=/", nil)
+	req.Header.Set("Authorization", "Bearer team-a-token")
+	res = httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+	if res.Code != http.StatusForbidden {
+		t.Fatalf("expected status 403 for cross-tenant access, got %d: %s", res.Code, res.Body.String())
 	}
 }
 
@@ -258,6 +380,7 @@ func newTestServer(t *testing.T) http.Handler {
 		"token-1": {
 			SubjectID:                 "service-account:test",
 			TenantID:                  "team-a",
+			Role:                      "admin",
 			AllowedTools:              []string{"codex"},
 			AllowedWorkspaces:         []string{"repo-*"},
 			AllowedCredentialProfiles: []string{"team-default"},

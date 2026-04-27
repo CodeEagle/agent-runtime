@@ -60,7 +60,7 @@ func NewPersistentRegistry(initial []Tool, storePath string) (*Registry, error) 
 	}
 	for _, tool := range stored.Tools {
 		if err := Validate(tool); err == nil {
-			if fallback, ok := defaults[tool.Name]; ok && isLegacyEnvPlaceholder(tool) && fallback.Path != tool.Path {
+			if fallback, ok := defaults[tool.Name]; ok && shouldUseDefaultTool(fallback, tool) {
 				tool = fallback
 			}
 			registry.byName[tool.Name] = tool
@@ -166,6 +166,16 @@ func Validate(tool Tool) error {
 func safeName(name string) bool {
 	name = strings.TrimSpace(name)
 	return name != "" && name != "." && name != ".." && !strings.ContainsAny(name, `/\`)
+}
+
+func shouldUseDefaultTool(fallback Tool, stored Tool) bool {
+	if fallback.Version != "official" {
+		return false
+	}
+	if isLegacyEnvPlaceholder(stored) && fallback.Path != stored.Path {
+		return true
+	}
+	return stored.Version == "manual" && fallback.Path != stored.Path
 }
 
 func isLegacyEnvPlaceholder(tool Tool) bool {

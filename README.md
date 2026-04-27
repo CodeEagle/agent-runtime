@@ -8,23 +8,25 @@ The goal is not to replace apps like cc-connect. The goal is to give many apps o
 
 This repo currently contains the first runtime slice:
 
-- Built-in Web UI at `/` for terminal login, CLI management, and tenant policy visibility.
+- Built-in Web UI at `/` for token login, terminal sessions, inline CLI management, tenant management, and file exploration.
 - Official-source CLI install cards for Claude Code, Codex, Gemini CLI, OpenCode, iFlow, Kimi, and Qoder.
 - JSON config loader.
-- Tenant-scoped token policies.
+- Tenant-scoped token policies with `admin` and `tenant` roles.
 - Persistent tool registry with add/update/delete HTTP APIs.
 - Credential profile home resolver.
 - Workspace resolver with symlink escape protection.
 - PTY-backed WebSocket terminal for human login flows.
+- Tenant-aware file explorer for `tenants/<tenant>/workspaces` and `tenants/<tenant>/homes`.
+- CLI executable health probes based on the real runtime `PATH`; registered tools are not reported as available until the command is actually present.
 - Asynchronous job manager.
 - Local process executor.
-- HTTP API for health, readiness, status, tools, tenants, jobs, job events, and terminal sessions.
+- HTTP API for health, readiness, status, tools, tenants, tenant tokens, files, jobs, job events, and terminal sessions.
 
 Not implemented yet:
 
 - Background CLI installer/updater jobs.
 - Persistent audit database.
-- CLI login-state health probes.
+- CLI login-state health probes beyond executable/version detection.
 
 ## API
 
@@ -32,10 +34,15 @@ Not implemented yet:
 GET  /api/health
 GET  /api/ready
 GET  /api/status
+GET  /api/session
 GET  /api/tools
 POST /api/tools
 DELETE /api/tools/{name}
 GET  /api/tenants
+GET  /api/tokens
+POST /api/tokens
+DELETE /api/tokens/{id}
+GET  /api/files?tenant=team-a&space=workspaces&path=/
 WS   /api/terminal
 POST /api/jobs
 GET  /api/jobs/{id}
@@ -81,9 +88,11 @@ curl -sS \
   http://127.0.0.1:8080/api/jobs
 ```
 
-`configs/local.json` registers the known CLI command names up front. Install them from the Web UI's official-source cards, then use the terminal or job API against the shared tenant credential profile.
+`configs/local.json` registers the known CLI command names up front. They show as unavailable until the command is found in the runtime `PATH`. Install them from the Web UI's official-source cards, then use the terminal or job API against the shared tenant credential profile.
 
 Open the Web UI at `/`, enter a token such as `dev-token`, connect the terminal with tenant `team-a`, workspace `repo-main`, and credential profile `team-default`, then use the login shortcut buttons for CLI auth flows.
+
+`dev-token` is an admin token in the sample config. `team-a-token` is a tenant token that can only see and browse `team-a`.
 
 ## Storage Layout
 
@@ -93,9 +102,11 @@ The core runtime only needs a configurable tenants directory:
 <data_dir>/
   tools/
     registry.json
-  tenants/<tenant_id>/
-    homes/<credential_profile>/
-    workspaces/<workspace_id>/
+  tenants/
+    registry.json
+    <tenant_id>/
+      homes/<credential_profile>/
+      workspaces/<workspace_id>/
 ```
 
 For LazyCat, packaging can point `data_dir` at `/data`. For local development, it can point at `/tmp/agent-runtime` or another absolute path.

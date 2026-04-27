@@ -11,6 +11,7 @@ import (
 	"agent-runtime/internal/config"
 	"agent-runtime/internal/credentials"
 	"agent-runtime/internal/execution"
+	"agent-runtime/internal/files"
 	"agent-runtime/internal/jobs"
 	"agent-runtime/internal/tenants"
 	"agent-runtime/internal/terminal"
@@ -31,9 +32,13 @@ func main() {
 	if err != nil {
 		log.Fatalf("load tool registry: %v", err)
 	}
-	tenantStore := tenants.NewStore(cfg.PolicyStore())
+	tenantStore, err := tenants.NewPersistentStore(cfg.PolicyStore(), filepath.Join(cfg.Storage.TenantsDir, "registry.json"))
+	if err != nil {
+		log.Fatalf("load tenant registry: %v", err)
+	}
 	workspaceResolver := workspaces.NewResolver(cfg.Storage.TenantsDir)
 	credentialResolver := credentials.NewResolver(cfg.Storage.TenantsDir)
+	fileExplorer := files.NewExplorer(cfg.Storage.TenantsDir)
 	manager := jobs.NewManager(jobs.Options{
 		Policies: tenantStore,
 		Tools:    toolRegistry,
@@ -61,6 +66,10 @@ func main() {
 		Tools:    toolRegistry,
 		Tenants:  tenantStore,
 		Terminal: terminalHandler,
+		Files:    fileExplorer,
+		ResolveCredentialProfile: func(tenantID string, profileID string) (string, error) {
+			return credentialResolver.ResolveProfile(tenantID, profileID)
+		},
 	})
 
 	log.Printf("agent-runtime listening on %s", cfg.Server.Address)

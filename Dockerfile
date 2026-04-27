@@ -36,7 +36,8 @@ RUN chmod +x /usr/local/bin/agent-runtime-entrypoint
 
 EXPOSE 8080
 ENV AGENT_RUNTIME_CONFIG=/etc/agent-runtime/config.json
-ENV PATH=/data/bin:/home/agent-runtime/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ENV NPM_CONFIG_PREFIX=/data/npm-global
+ENV PATH=/data/bin:/data/npm-global/bin:/home/agent-runtime/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD wget -qO- http://127.0.0.1:8080/api/health >/dev/null || exit 1
