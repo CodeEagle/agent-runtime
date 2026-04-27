@@ -38,6 +38,28 @@ func TestServerListsTools(t *testing.T) {
 	}
 }
 
+func TestServerServesWebUIAtRoot(t *testing.T) {
+	handler := newTestServer(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	res := httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", res.Code, res.Body.String())
+	}
+	if got := res.Header().Get("Content-Type"); !strings.Contains(got, "text/html") {
+		t.Fatalf("expected HTML content type, got %q", got)
+	}
+	body := res.Body.String()
+	if !strings.Contains(body, "Agent Runtime") {
+		t.Fatalf("expected UI title in response, got %q", body)
+	}
+	if !strings.Contains(body, "/api/tools") {
+		t.Fatalf("expected UI to reference API endpoints, got %q", body)
+	}
+}
+
 func TestServerRejectsJobWithoutBearerToken(t *testing.T) {
 	handler := newTestServer(t)
 

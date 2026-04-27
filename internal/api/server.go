@@ -22,6 +22,7 @@ type Options struct {
 func NewServer(options Options) http.Handler {
 	server := &server{jobs: options.Jobs, tools: options.Tools}
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /{$}", server.webUI)
 	mux.HandleFunc("GET /api/health", server.health)
 	mux.HandleFunc("GET /api/ready", server.ready)
 	mux.HandleFunc("GET /api/status", server.status)
@@ -34,6 +35,16 @@ func NewServer(options Options) http.Handler {
 type server struct {
 	jobs  *jobs.Manager
 	tools ToolLister
+}
+
+func (s *server) webUI(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/" {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(webUIHTML))
 }
 
 func (s *server) health(w http.ResponseWriter, r *http.Request) {

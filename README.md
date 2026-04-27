@@ -8,6 +8,7 @@ The goal is not to replace apps like cc-connect. The goal is to give many apps o
 
 This repo currently contains the first backend slice:
 
+- Built-in Web UI at `/` for status, tools, and simple job submission.
 - JSON config loader.
 - Tenant-scoped token policies.
 - Tool registry.
