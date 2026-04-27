@@ -7,34 +7,54 @@ import (
 	"strings"
 
 	"agent-runtime/internal/jobs"
+	"agent-runtime/internal/tenants"
 	"agent-runtime/internal/tools"
 )
 
-type ToolLister interface {
+type ToolManager interface {
 	List() []tools.Tool
+	Upsert(tools.Tool) error
+	Delete(name string) error
+}
+
+type TenantLister interface {
+	List() []tenants.Summary
 }
 
 type Options struct {
-	Jobs  *jobs.Manager
-	Tools ToolLister
+	Jobs     *jobs.Manager
+	Tools    ToolManager
+	Tenants  TenantLister
+	Terminal http.Handler
 }
 
 func NewServer(options Options) http.Handler {
-	server := &server{jobs: options.Jobs, tools: options.Tools}
+	server := &server{
+		jobs:     options.Jobs,
+		tools:    options.Tools,
+		tenants:  options.Tenants,
+		terminal: options.Terminal,
+	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{$}", server.webUI)
 	mux.HandleFunc("GET /api/health", server.health)
 	mux.HandleFunc("GET /api/ready", server.ready)
 	mux.HandleFunc("GET /api/status", server.status)
 	mux.HandleFunc("GET /api/tools", server.listTools)
+	mux.HandleFunc("POST /api/tools", server.upsertTool)
+	mux.HandleFunc("DELETE /api/tools/{name}", server.deleteTool)
+	mux.HandleFunc("GET /api/tenants", server.listTenants)
+	mux.HandleFunc("GET /api/terminal", server.terminalSession)
 	mux.HandleFunc("POST /api/jobs", server.createJob)
 	mux.HandleFunc("/api/jobs/", server.jobByID)
 	return mux
 }
 
 type server struct {
-	jobs  *jobs.Manager
-	tools ToolLister
+	jobs     *jobs.Manager
+	tools    ToolManager
+	tenants  TenantLister
+	terminal http.Handler
 }
 
 func (s *server) webUI(w http.ResponseWriter, r *http.Request) {
@@ -64,9 +84,15 @@ func (s *server) status(w http.ResponseWriter, r *http.Request) {
 	if s.tools != nil {
 		toolCount = len(s.tools.List())
 	}
+	tenantCount := 0
+	if s.tenants != nil {
+		tenantCount = len(s.tenants.List())
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"status": "ok",
-		"tools":  toolCount,
+		"status":   "ok",
+		"tools":    toolCount,
+		"tenants":  tenantCount,
+		"terminal": s.terminal != nil,
 	})
 }
 
@@ -76,6 +102,58 @@ func (s *server) listTools(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"tools": s.tools.List()})
+}
+
+func (s *server) upsertTool(w http.ResponseWriter, r *http.Request) {
+	if s.tools == nil {
+		writeError(w, http.StatusServiceUnavailable, "tool registry is not configured")
+		return
+	}
+	var tool tools.Tool
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&tool); err != nil {
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("invalid tool request: %v", err))
+		return
+	}
+	if err := s.tools.Upsert(tool); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusCreated, tool)
+}
+
+func (s *server) deleteTool(w http.ResponseWriter, r *http.Request) {
+	if s.tools == nil {
+		writeError(w, http.StatusServiceUnavailable, "tool registry is not configured")
+		return
+	}
+	name := r.PathValue("name")
+	if err := s.tools.Delete(name); err != nil {
+		status := http.StatusInternalServerError
+		if strings.Contains(err.Error(), "not found") {
+			status = http.StatusNotFound
+		}
+		writeError(w, status, err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *server) listTenants(w http.ResponseWriter, r *http.Request) {
+	if s.tenants == nil {
+		writeError(w, http.StatusServiceUnavailable, "tenant store is not configured")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"tenants": s.tenants.List()})
+}
+
+func (s *server) terminalSession(w http.ResponseWriter, r *http.Request) {
+	if s.terminal == nil {
+		writeError(w, http.StatusServiceUnavailable, "terminal is not configured")
+		return
+	}
+	s.terminal.ServeHTTP(w, r)
 }
 
 func (s *server) createJob(w http.ResponseWriter, r *http.Request) {

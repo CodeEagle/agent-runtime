@@ -1,7 +1,12 @@
 package tools
 
 import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
 )
 
@@ -14,19 +19,45 @@ type Tool struct {
 }
 
 type Registry struct {
-	mu     sync.RWMutex
-	byName map[string]Tool
+	mu        sync.RWMutex
+	byName    map[string]Tool
+	storePath string
 }
 
 func NewRegistry(initial []Tool) *Registry {
 	registry := &Registry{byName: make(map[string]Tool)}
 	for _, tool := range initial {
-		if tool.Name == "" {
+		if err := Validate(tool); err != nil {
 			continue
 		}
 		registry.byName[tool.Name] = tool
 	}
 	return registry
+}
+
+func NewPersistentRegistry(initial []Tool, storePath string) (*Registry, error) {
+	registry := NewRegistry(initial)
+	registry.storePath = storePath
+	if storePath == "" {
+		return registry, nil
+	}
+	raw, err := os.ReadFile(storePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return registry, nil
+		}
+		return nil, fmt.Errorf("read tool registry: %w", err)
+	}
+	var stored persistedRegistry
+	if err := json.Unmarshal(raw, &stored); err != nil {
+		return nil, fmt.Errorf("parse tool registry: %w", err)
+	}
+	for _, tool := range stored.Tools {
+		if err := Validate(tool); err == nil {
+			registry.byName[tool.Name] = tool
+		}
+	}
+	return registry, nil
 }
 
 func (r *Registry) Resolve(name string) (Tool, bool) {
@@ -46,6 +77,10 @@ func (r *Registry) List() []Tool {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
+	return r.listLocked()
+}
+
+func (r *Registry) listLocked() []Tool {
 	out := make([]Tool, 0, len(r.byName))
 	for _, tool := range r.byName {
 		out = append(out, tool)
@@ -54,4 +89,76 @@ func (r *Registry) List() []Tool {
 		return out[i].Name < out[j].Name
 	})
 	return out
+}
+
+func (r *Registry) Upsert(tool Tool) error {
+	if r == nil {
+		return fmt.Errorf("tool registry is not configured")
+	}
+	if err := Validate(tool); err != nil {
+		return err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.byName[tool.Name] = tool
+	return r.saveLocked()
+}
+
+func (r *Registry) Delete(name string) error {
+	if r == nil {
+		return fmt.Errorf("tool registry is not configured")
+	}
+	if !safeName(name) {
+		return fmt.Errorf("tool not found")
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.byName[name]; !ok {
+		return fmt.Errorf("tool not found")
+	}
+	delete(r.byName, name)
+	return r.saveLocked()
+}
+
+func (r *Registry) saveLocked() error {
+	if r.storePath == "" {
+		return nil
+	}
+	if err := os.MkdirAll(filepath.Dir(r.storePath), 0o755); err != nil {
+		return fmt.Errorf("create tool registry directory: %w", err)
+	}
+	raw, err := json.MarshalIndent(persistedRegistry{Tools: r.listLocked()}, "", "  ")
+	if err != nil {
+		return fmt.Errorf("encode tool registry: %w", err)
+	}
+	tmpPath := r.storePath + ".tmp"
+	if err := os.WriteFile(tmpPath, append(raw, '\n'), 0o644); err != nil {
+		return fmt.Errorf("write tool registry: %w", err)
+	}
+	if err := os.Rename(tmpPath, r.storePath); err != nil {
+		return fmt.Errorf("replace tool registry: %w", err)
+	}
+	return nil
+}
+
+func Validate(tool Tool) error {
+	if !safeName(tool.Name) {
+		return fmt.Errorf("tool name is required and must not contain path separators")
+	}
+	if strings.TrimSpace(tool.Path) == "" {
+		return fmt.Errorf("tool path is required")
+	}
+	if strings.Contains(tool.CredentialSubdir, "..") || strings.ContainsAny(tool.CredentialSubdir, `/\`) {
+		return fmt.Errorf("credential subdir must be a simple directory name")
+	}
+	return nil
+}
+
+func safeName(name string) bool {
+	name = strings.TrimSpace(name)
+	return name != "" && name != "." && name != ".." && !strings.ContainsAny(name, `/\`)
+}
+
+type persistedRegistry struct {
+	Tools []Tool `json:"tools"`
 }

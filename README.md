@@ -6,25 +6,24 @@ The goal is not to replace apps like cc-connect. The goal is to give many apps o
 
 ## Current Slice
 
-This repo currently contains the first backend slice:
+This repo currently contains the first runtime slice:
 
-- Built-in Web UI at `/` for status, tools, and simple job submission.
+- Built-in Web UI at `/` for terminal login, CLI management, and tenant policy visibility.
 - JSON config loader.
 - Tenant-scoped token policies.
-- Tool registry.
+- Persistent tool registry with add/update/delete HTTP APIs.
 - Credential profile home resolver.
 - Workspace resolver with symlink escape protection.
+- PTY-backed WebSocket terminal for human login flows.
 - Asynchronous job manager.
 - Local process executor.
-- HTTP API for health, readiness, status, tools, jobs, and job events.
+- HTTP API for health, readiness, status, tools, tenants, jobs, job events, and terminal sessions.
 
 Not implemented yet:
 
 - CLI installer/updater.
-- Web terminal and PTY WebSocket API.
 - Persistent audit database.
-- Web UI.
-- Docker/LazyCat packaging.
+- Real CLI installer/updater commands behind the CLI Manager controls.
 
 ## API
 
@@ -33,6 +32,10 @@ GET  /api/health
 GET  /api/ready
 GET  /api/status
 GET  /api/tools
+POST /api/tools
+DELETE /api/tools/{name}
+GET  /api/tenants
+WS   /api/terminal
 POST /api/jobs
 GET  /api/jobs/{id}
 GET  /api/jobs/{id}/events
@@ -79,6 +82,8 @@ curl -sS \
 
 `configs/local.json` maps `codex` and `claude` to `/usr/bin/env` so the job path is testable even before real CLIs are installed.
 
+Open the Web UI at `/`, enter a token such as `dev-token`, connect the terminal with tenant `team-a`, workspace `repo-main`, and credential profile `team-default`, then use the login shortcut buttons for CLI auth flows.
+
 ## Storage Layout
 
 The core runtime only needs a configurable tenants directory:
@@ -86,6 +91,7 @@ The core runtime only needs a configurable tenants directory:
 ```text
 <data_dir>/
   tools/
+    registry.json
   tenants/<tenant_id>/
     homes/<credential_profile>/
     workspaces/<workspace_id>/

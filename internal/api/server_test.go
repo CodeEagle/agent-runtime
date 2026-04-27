@@ -13,7 +13,11 @@ import (
 	"agent-runtime/internal/api"
 	"agent-runtime/internal/jobs"
 	"agent-runtime/internal/policy"
+	"agent-runtime/internal/tenants"
+	"agent-runtime/internal/terminal"
 	"agent-runtime/internal/tools"
+
+	"github.com/gorilla/websocket"
 )
 
 func TestServerListsTools(t *testing.T) {
@@ -58,6 +62,111 @@ func TestServerServesWebUIAtRoot(t *testing.T) {
 	if !strings.Contains(body, "/api/tools") {
 		t.Fatalf("expected UI to reference API endpoints, got %q", body)
 	}
+	if strings.Contains(body, "Create Job") {
+		t.Fatalf("expected UI to hide job creation controls, got %q", body)
+	}
+	if !strings.Contains(body, "Terminal") || !strings.Contains(body, "CLI Manager") {
+		t.Fatalf("expected terminal and CLI manager tabs, got %q", body)
+	}
+}
+
+func TestServerAddsAndDeletesTools(t *testing.T) {
+	handler := newTestServer(t)
+
+	payload := []byte(`{
+		"name": "claude",
+		"path": "/usr/bin/claude",
+		"version": "test",
+		"credential_env": "CLAUDE_CONFIG_DIR",
+		"credential_subdir": ".claude"
+	}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/tools", bytes.NewReader(payload))
+	res := httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+	if res.Code != http.StatusCreated {
+		t.Fatalf("expected status 201, got %d: %s", res.Code, res.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodDelete, "/api/tools/claude", nil)
+	res = httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+	if res.Code != http.StatusNoContent {
+		t.Fatalf("expected status 204, got %d: %s", res.Code, res.Body.String())
+	}
+}
+
+func TestServerListsTenants(t *testing.T) {
+	handler := newTestServer(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/tenants", nil)
+	res := httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", res.Code, res.Body.String())
+	}
+
+	var body struct {
+		Tenants []tenants.Summary `json:"tenants"`
+	}
+	if err := json.Unmarshal(res.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if len(body.Tenants) != 1 || body.Tenants[0].ID != "team-a" {
+		t.Fatalf("unexpected tenants response: %#v", body.Tenants)
+	}
+	if !body.Tenants[0].AllowTerminal {
+		t.Fatalf("expected terminal permission to be exposed: %#v", body.Tenants[0])
+	}
+}
+
+func TestServerRejectsTerminalWithoutToken(t *testing.T) {
+	handler := newTestServer(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/terminal?tenant=team-a&workspace=repo-main&credential_profile=team-default", nil)
+	res := httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+	if res.Code != http.StatusForbidden {
+		t.Fatalf("expected status 403, got %d: %s", res.Code, res.Body.String())
+	}
+}
+
+func TestServerRunsTerminalWebSocket(t *testing.T) {
+	handler := newTestServer(t)
+	server := httptest.NewServer(handler)
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/api/terminal?token=token-1&tenant=team-a&workspace=repo-main&credential_profile=team-default"
+	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("dial terminal websocket: %v", err)
+	}
+	defer conn.Close()
+
+	if err := conn.WriteJSON(map[string]string{"type": "input", "data": "printf agent-runtime-ok\\n\r"}); err != nil {
+		t.Fatalf("write terminal command: %v", err)
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	var output strings.Builder
+	for time.Now().Before(deadline) {
+		if err := conn.SetReadDeadline(time.Now().Add(500 * time.Millisecond)); err != nil {
+			t.Fatalf("set read deadline: %v", err)
+		}
+		var message struct {
+			Type string `json:"type"`
+			Data string `json:"data"`
+		}
+		if err := conn.ReadJSON(&message); err != nil {
+			continue
+		}
+		if message.Type == "output" {
+			output.WriteString(message.Data)
+		}
+		if strings.Contains(output.String(), "agent-runtime-ok") {
+			return
+		}
+	}
+	t.Fatalf("terminal output did not contain marker, got %q", output.String())
 }
 
 func TestServerRejectsJobWithoutBearerToken(t *testing.T) {
@@ -111,28 +220,39 @@ func newTestServer(t *testing.T) http.Handler {
 	registry := tools.NewRegistry([]tools.Tool{
 		{Name: "codex", Path: "/usr/bin/codex", Version: "test", CredentialEnv: "CODEX_HOME", CredentialSubdir: ".codex"},
 	})
+	tenantStore := tenants.NewStore(map[string]policy.Policy{
+		"token-1": {
+			SubjectID:                 "service-account:test",
+			TenantID:                  "team-a",
+			AllowedTools:              []string{"codex"},
+			AllowedWorkspaces:         []string{"repo-*"},
+			AllowedCredentialProfiles: []string{"team-default"},
+			AllowTerminal:             true,
+			MaxJobDuration:            time.Minute,
+		},
+	})
+	resolveWorkspace := func(string, string) (string, error) {
+		return t.TempDir(), nil
+	}
+	resolveCredentialProfile := func(string, string) (string, error) {
+		return t.TempDir(), nil
+	}
 	manager := jobs.NewManager(jobs.Options{
-		Policies: jobs.StaticPolicyStore{
-			"token-1": policy.Policy{
-				SubjectID:                 "service-account:test",
-				TenantID:                  "team-a",
-				AllowedTools:              []string{"codex"},
-				AllowedWorkspaces:         []string{"repo-*"},
-				AllowedCredentialProfiles: []string{"team-default"},
-				MaxJobDuration:            time.Minute,
-			},
-		},
-		Tools: registry,
-		ResolveWorkspace: func(string, string) (string, error) {
-			return t.TempDir(), nil
-		},
-		ResolveCredentialProfile: func(string, string) (string, error) {
-			return t.TempDir(), nil
-		},
-		Executor: immediateExecutor{},
+		Policies:                 tenantStore,
+		Tools:                    registry,
+		ResolveWorkspace:         resolveWorkspace,
+		ResolveCredentialProfile: resolveCredentialProfile,
+		Executor:                 immediateExecutor{},
+	})
+	terminalHandler := terminal.NewHandler(terminal.Options{
+		Policies:                 tenantStore,
+		Tools:                    registry,
+		ResolveWorkspace:         resolveWorkspace,
+		ResolveCredentialProfile: resolveCredentialProfile,
+		Shell:                    "/bin/sh",
 	})
 
-	return api.NewServer(api.Options{Jobs: manager, Tools: registry})
+	return api.NewServer(api.Options{Jobs: manager, Tools: registry, Tenants: tenantStore, Terminal: terminalHandler})
 }
 
 type immediateExecutor struct{}

@@ -4,7 +4,7 @@ ARG TARGETPLATFORM=linux/amd64
 FROM --platform=$BUILDPLATFORM golang:1.24-alpine AS build
 
 WORKDIR /src
-COPY go.mod ./
+COPY go.mod go.sum ./
 COPY cmd ./cmd
 COPY internal ./internal
 
@@ -12,7 +12,7 @@ ARG TARGETOS=linux
 ARG TARGETARCH=amd64
 RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags="-s -w" -o /out/agent-runtime ./cmd/agent-runtime
 
-FROM --platform=$TARGETPLATFORM alpine:3.21
+FROM alpine:3.21
 
 RUN apk add --no-cache su-exec \
     && addgroup -S agent-runtime && adduser -S -G agent-runtime agent-runtime \

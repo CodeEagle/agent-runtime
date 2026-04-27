@@ -129,3 +129,32 @@ func TestAuthorizeJobRejectsOutOfPolicyRequests(t *testing.T) {
 		})
 	}
 }
+
+func TestAuthorizeTerminalRequiresTenantWorkspaceProfileAndPermission(t *testing.T) {
+	p := policy.Policy{
+		SubjectID:                 "service-account:web",
+		TenantID:                  "team-a",
+		AllowedWorkspaces:         []string{"repo-*"},
+		AllowedCredentialProfiles: []string{"team-default"},
+		AllowTerminal:             true,
+	}
+
+	err := p.AuthorizeTerminal(policy.TerminalRequest{
+		TenantID:          "team-a",
+		WorkspaceID:       "repo-main",
+		CredentialProfile: "team-default",
+	})
+	if err != nil {
+		t.Fatalf("expected terminal request to be authorized, got %v", err)
+	}
+
+	p.AllowTerminal = false
+	err = p.AuthorizeTerminal(policy.TerminalRequest{
+		TenantID:          "team-a",
+		WorkspaceID:       "repo-main",
+		CredentialProfile: "team-default",
+	})
+	if err == nil || !strings.Contains(err.Error(), "terminal") {
+		t.Fatalf("expected terminal permission error, got %v", err)
+	}
+}

@@ -29,7 +29,7 @@
       "allowed_tools": ["codex", "claude"],
       "allowed_workspaces": ["repo-*"],
       "allowed_credential_profiles": ["team-default"],
-      "allow_terminal": false,
+      "allow_terminal": true,
       "max_job_seconds": 900
     }
   ]
