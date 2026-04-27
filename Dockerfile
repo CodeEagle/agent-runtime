@@ -14,18 +14,20 @@ RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags=
 
 FROM --platform=$TARGETPLATFORM alpine:3.21
 
-RUN addgroup -S agent-runtime && adduser -S -G agent-runtime agent-runtime \
+RUN apk add --no-cache su-exec \
+    && addgroup -S agent-runtime && adduser -S -G agent-runtime agent-runtime \
     && mkdir -p /data /etc/agent-runtime \
     && chown -R agent-runtime:agent-runtime /data /etc/agent-runtime
 
 COPY --from=build /out/agent-runtime /usr/local/bin/agent-runtime
 COPY configs/container.json /etc/agent-runtime/config.json
+COPY docker/entrypoint.sh /usr/local/bin/agent-runtime-entrypoint
+RUN chmod +x /usr/local/bin/agent-runtime-entrypoint
 
-USER agent-runtime
 EXPOSE 8080
 ENV AGENT_RUNTIME_CONFIG=/etc/agent-runtime/config.json
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD wget -qO- http://127.0.0.1:8080/api/health >/dev/null || exit 1
 
-ENTRYPOINT ["/usr/local/bin/agent-runtime"]
+ENTRYPOINT ["/usr/local/bin/agent-runtime-entrypoint"]
