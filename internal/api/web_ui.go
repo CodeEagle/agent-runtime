@@ -451,34 +451,51 @@ const webUIHTML = `<!doctype html>
       font-size: 11px;
       overflow-wrap: anywhere;
     }
+    .tool-meta {
+      display: grid;
+      gap: 7px;
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .tool-meta div {
+      display: grid;
+      grid-template-columns: 110px minmax(0, 1fr);
+      gap: 8px;
+      align-items: start;
+    }
+    .tool-meta strong {
+      color: var(--faint);
+      font-size: 11px;
+      font-weight: 850;
+      text-transform: uppercase;
+    }
+    .tool-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
     .manager-grid {
       display: grid;
       grid-template-columns: minmax(0, 1fr) 360px;
       gap: 16px;
       align-items: start;
     }
-    .table-wrap { overflow: auto; }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 13px;
+    .manager-tools {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 12px;
+      padding: 14px;
     }
-    th, td {
-      padding: 12px;
-      border-bottom: 1px solid var(--line);
-      text-align: left;
-      vertical-align: top;
+    .manager-tools .tool-card {
+      min-height: 190px;
+      display: flex;
+      flex-direction: column;
     }
-    th {
-      color: var(--muted);
-      font-size: 11px;
-      text-transform: uppercase;
-      font-weight: 900;
-    }
-    td code {
-      color: #d5e8ff;
-      font-size: 12px;
-      overflow-wrap: anywhere;
+    .manager-tools .tool-actions {
+      margin-top: auto;
+      padding-top: 12px;
     }
     .form-stack {
       display: grid;
@@ -722,20 +739,8 @@ const webUIHTML = `<!doctype html>
                   </div>
                 </div>
               </div>
-              <div class="table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th data-i18n="name">名称</th>
-                      <th data-i18n="version">版本</th>
-                      <th data-i18n="path">路径</th>
-                      <th data-i18n="credentialEnv">凭据环境变量</th>
-                      <th data-i18n="credentialSubdir">凭据子目录</th>
-                      <th></th>
-                    </tr>
-                  </thead>
-                  <tbody id="tools"><tr><td colspan="6"><div class="empty">Loading CLI tools</div></td></tr></tbody>
-                </table>
+              <div class="manager-tools" id="tools">
+                <div class="empty">Loading CLI tools</div>
               </div>
             </section>
 
@@ -834,6 +839,9 @@ const webUIHTML = `<!doctype html>
         path: '路径',
         credentialEnv: '凭据环境变量',
         credentialSubdir: '凭据子目录',
+        credentialHome: '凭据目录',
+        commandPath: '命令路径',
+        loginCommand: '登录命令',
         installCli: '安装 CLI',
         installCliDesc: '注册已有的 CLI 二进制路径。',
         saveCli: '保存 CLI',
@@ -896,6 +904,9 @@ const webUIHTML = `<!doctype html>
         path: 'Path',
         credentialEnv: 'Credential Env',
         credentialSubdir: 'Credential Subdir',
+        credentialHome: 'Credential Home',
+        commandPath: 'Command Path',
+        loginCommand: 'Login Command',
         installCli: 'Install CLI',
         installCliDesc: 'Register an existing CLI binary path.',
         saveCli: 'Save CLI',
@@ -1227,14 +1238,15 @@ const webUIHTML = `<!doctype html>
 
     function renderLoginShortcuts() {
       const knownTools = new Set(state.tools.map(function(tool) { return tool.name; }));
-      $('login-shortcuts').innerHTML = loginCommands.map(function(item) {
+      const container = $('login-shortcuts');
+      container.innerHTML = loginCommands.map(function(item) {
         const registered = knownTools.has(item.tool);
         return '<button class="quick-button" type="button" data-login-command="' + escapeHTML(item.command) + '">' +
           '<span><strong>' + escapeHTML(item.label) + '</strong><span>' + escapeHTML(item.command) + '</span></span>' +
           '<span class="badge ' + (registered ? 'ok' : 'warn') + '">' + (registered ? t('readyLabel') : t('addLabel')) + '</span>' +
         '</button>';
       }).join('');
-      document.querySelectorAll('[data-login-command]').forEach(function(button) {
+      container.querySelectorAll('[data-login-command]').forEach(function(button) {
         button.addEventListener('click', function() { runCommand(button.dataset.loginCommand); });
       });
     }
@@ -1246,40 +1258,55 @@ const webUIHTML = `<!doctype html>
         return;
       }
       container.innerHTML = state.tools.slice(0, 6).map(function(tool) {
-        return '<div class="tool-card">' +
-          '<div class="tool-card-head">' +
-            '<span class="tool-name">' + escapeHTML(tool.name) + '</span>' +
-            '<span class="badge ok"><span class="led ok"></span>' + escapeHTML(t('registered')) + '</span>' +
-          '</div>' +
-          '<div class="tool-path">' + escapeHTML(tool.path) + '</div>' +
-          '<div class="tool-path">' + escapeHTML(tool.credential_env || 'HOME') + ' -> ' + escapeHTML(tool.credential_subdir || '.') + '</div>' +
-        '</div>';
+        return toolCardHTML(tool, false);
       }).join('');
     }
 
     function renderTools() {
-      const body = $('tools');
+      const container = $('tools');
       if (!state.tools.length) {
-        body.innerHTML = '<tr><td colspan="6"><div class="empty">' + escapeHTML(t('noTools')) + '</div></td></tr>';
+        container.innerHTML = '<div class="empty">' + escapeHTML(t('noTools')) + '</div>';
         return;
       }
-      body.innerHTML = state.tools.map(function(tool) {
-        return '<tr>' +
-          '<td><code>' + escapeHTML(tool.name) + '</code></td>' +
-          '<td>' + escapeHTML(tool.version || '-') + '</td>' +
-          '<td><code>' + escapeHTML(tool.path) + '</code></td>' +
-          '<td><code>' + escapeHTML(tool.credential_env || '-') + '</code></td>' +
-          '<td><code>' + escapeHTML(tool.credential_subdir || '-') + '</code></td>' +
-          '<td><button class="danger" type="button" data-delete-tool="' + escapeHTML(tool.name) + '">' + escapeHTML(t('delete')) + '</button></td>' +
-        '</tr>';
+      container.innerHTML = state.tools.map(function(tool) {
+        return toolCardHTML(tool, true);
       }).join('');
-      document.querySelectorAll('[data-delete-tool]').forEach(function(button) {
+      container.querySelectorAll('[data-login-command]').forEach(function(button) {
+        button.addEventListener('click', function() { runCommand(button.dataset.loginCommand); });
+      });
+      container.querySelectorAll('[data-delete-tool]').forEach(function(button) {
         button.addEventListener('click', async function() {
           await api('/api/tools/' + encodeURIComponent(button.dataset.deleteTool), { method: 'DELETE' });
           showToast(t('cliDeleted') + ': ' + button.dataset.deleteTool);
           await refresh();
         });
       });
+    }
+
+    function toolCardHTML(tool, manageable) {
+      const login = loginCommands.find(function(item) { return item.tool === tool.name; });
+      const credentialHome = (tool.credential_env || 'HOME') + ' -> ' + (tool.credential_subdir || '.');
+      let html = '<div class="tool-card">' +
+        '<div class="tool-card-head">' +
+          '<span class="tool-name">' + escapeHTML(tool.name) + '</span>' +
+          '<span class="badge ok"><span class="led ok"></span>' + escapeHTML(t('registered')) + '</span>' +
+        '</div>' +
+        '<div class="tool-meta">' +
+          '<div><strong>' + escapeHTML(t('version')) + '</strong><span>' + escapeHTML(tool.version || '-') + '</span></div>' +
+          '<div><strong>' + escapeHTML(t('commandPath')) + '</strong><span class="mono">' + escapeHTML(tool.path) + '</span></div>' +
+          '<div><strong>' + escapeHTML(t('credentialHome')) + '</strong><span class="mono">' + escapeHTML(credentialHome) + '</span></div>';
+      if (login) {
+        html += '<div><strong>' + escapeHTML(t('loginCommand')) + '</strong><span class="mono">' + escapeHTML(login.command) + '</span></div>';
+      }
+      html += '</div>';
+      if (manageable) {
+        html += '<div class="tool-actions">' +
+          (login ? '<button class="ghost" type="button" data-login-command="' + escapeHTML(login.command) + '">' + escapeHTML(t('quickLogin')) + '</button>' : '') +
+          '<button class="danger" type="button" data-delete-tool="' + escapeHTML(tool.name) + '">' + escapeHTML(t('delete')) + '</button>' +
+        '</div>';
+      }
+      html += '</div>';
+      return html;
     }
 
     function renderTenants() {
