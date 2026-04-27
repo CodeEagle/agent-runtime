@@ -1,0 +1,5 @@
+.git
+agent-runtime
+dist
+tmp
+.DS_Store

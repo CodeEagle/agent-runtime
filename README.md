@@ -59,6 +59,13 @@ nix shell nixpkgs#go -c go test ./...
 nix shell nixpkgs#go -c go run ./cmd/agent-runtime -config configs/local.json
 ```
 
+Build and run the container:
+
+```bash
+docker build -t agent-runtime:local .
+docker run --rm -p 8080:8080 -v agent-runtime-data:/data agent-runtime:local
+```
+
 Create a job:
 
 ```bash

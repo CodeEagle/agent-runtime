@@ -1,0 +1,36 @@
+{
+  "server": {
+    "address": "0.0.0.0:8080"
+  },
+  "storage": {
+    "data_dir": "/data"
+  },
+  "tools": [
+    {
+      "name": "codex",
+      "path": "/usr/bin/env",
+      "version": "placeholder",
+      "credential_env": "CODEX_HOME",
+      "credential_subdir": ".codex"
+    },
+    {
+      "name": "claude",
+      "path": "/usr/bin/env",
+      "version": "placeholder",
+      "credential_env": "CLAUDE_CONFIG_DIR",
+      "credential_subdir": ".claude"
+    }
+  ],
+  "tokens": [
+    {
+      "token": "dev-token",
+      "subject": "service-account:local-dev",
+      "tenant": "team-a",
+      "allowed_tools": ["codex", "claude"],
+      "allowed_workspaces": ["repo-*"],
+      "allowed_credential_profiles": ["team-default"],
+      "allow_terminal": false,
+      "max_job_seconds": 900
+    }
+  ]
+}
