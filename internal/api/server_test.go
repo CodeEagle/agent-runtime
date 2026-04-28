@@ -68,8 +68,8 @@ func TestServerServesWebUIAtRoot(t *testing.T) {
 	if strings.Contains(body, "Create Job") {
 		t.Fatalf("expected UI to hide job creation controls, got %q", body)
 	}
-	if !strings.Contains(body, "CLI Manager") || !strings.Contains(body, "Agent Runtime API") {
-		t.Fatalf("expected home CLI manager and API interface, got %q", body)
+	if !strings.Contains(body, "CLI Manager") || !strings.Contains(body, "Swagger UI") || !strings.Contains(body, `id="swagger-frame"`) || !strings.Contains(body, `src="/docs"`) {
+		t.Fatalf("expected home CLI manager and embedded Swagger UI, got %q", body)
 	}
 	if strings.Contains(body, "Installed CLIs") || strings.Contains(body, "Repositories") || strings.Contains(body, `data-manager-tab`) || strings.Contains(body, `repositories-panel`) {
 		t.Fatalf("expected CLI manager to show cards without redundant tabs, got %q", body)
@@ -92,13 +92,12 @@ func TestServerServesWebUIAtRoot(t *testing.T) {
 	if strings.Contains(body, `id="tool-path"`) || strings.Contains(body, `id="tool-name"`) {
 		t.Fatalf("expected UI to use official install sources instead of manual path registration")
 	}
-	for _, marker := range []string{
-		"/openapi.json",
-		"POST /api/jobs",
-		"WS /api/terminal",
-	} {
+	if strings.Contains(body, `class="api-card"`) || strings.Contains(body, `data-api-target`) {
+		t.Fatalf("expected API tab to use Swagger UI instead of custom endpoint cards")
+	}
+	for _, marker := range []string{"/docs", "/openapi.json"} {
 		if !strings.Contains(body, marker) {
-			t.Fatalf("expected API interface marker %q", marker)
+			t.Fatalf("expected Swagger interface marker %q", marker)
 		}
 	}
 	for _, marker := range []string{
@@ -121,7 +120,7 @@ func TestServerServesWebUIAtRoot(t *testing.T) {
 		"https://opencode.ai/favicon-96x96-v3.png",
 		"https://img.alicdn.com/imgextra",
 		"https://www.kimi.com/favicon.ico",
-		"https://docs.qoder.com/mintlify-assets",
+		"/assets/logos/qoder.svg",
 	} {
 		if !strings.Contains(body, marker) {
 			t.Fatalf("expected UI to include official CLI logo or source %q", marker)
@@ -175,9 +174,29 @@ func TestServerServesOpenAPI(t *testing.T) {
 	if body.OpenAPI != "3.1.0" || body.Info.Title != "Agent Runtime API" {
 		t.Fatalf("unexpected openapi metadata: %#v", body)
 	}
-	for _, path := range []string{"/api/status", "/api/tools", "/api/jobs", "/api/terminal"} {
+	for _, path := range []string{"/api/status", "/api/register", "/api/tools", "/api/jobs", "/api/jobs/{id}/events/ws", "/api/app-server/{tool}", "/api/terminal"} {
 		if _, ok := body.Paths[path]; !ok {
 			t.Fatalf("expected openapi path %s in %#v", path, body.Paths)
+		}
+	}
+}
+
+func TestServerServesSwaggerUI(t *testing.T) {
+	handler := newTestServer(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/docs", nil)
+	res := httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", res.Code, res.Body.String())
+	}
+	if got := res.Header().Get("Content-Type"); !strings.Contains(got, "text/html") {
+		t.Fatalf("expected HTML content type, got %q", got)
+	}
+	body := res.Body.String()
+	for _, marker := range []string{"SwaggerUIBundle", "swagger-ui-dist", "/openapi.json"} {
+		if !strings.Contains(body, marker) {
+			t.Fatalf("expected Swagger UI marker %q", marker)
 		}
 	}
 }
@@ -185,15 +204,17 @@ func TestServerServesOpenAPI(t *testing.T) {
 func TestServerServesVendoredLogoAsset(t *testing.T) {
 	handler := newTestServer(t)
 
-	req := httptest.NewRequest(http.MethodGet, "/assets/logos/claude.svg", nil)
-	res := httptest.NewRecorder()
-	handler.ServeHTTP(res, req)
+	for _, path := range []string{"/assets/logos/claude.svg", "/assets/logos/qoder.svg"} {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		res := httptest.NewRecorder()
+		handler.ServeHTTP(res, req)
 
-	if res.Code != http.StatusOK {
-		t.Fatalf("expected status 200, got %d: %s", res.Code, res.Body.String())
-	}
-	if got := res.Header().Get("Content-Type"); !strings.Contains(got, "image/svg+xml") {
-		t.Fatalf("expected SVG content type, got %q", got)
+		if res.Code != http.StatusOK {
+			t.Fatalf("expected status 200 for %s, got %d: %s", path, res.Code, res.Body.String())
+		}
+		if got := res.Header().Get("Content-Type"); !strings.Contains(got, "image/svg+xml") {
+			t.Fatalf("expected SVG content type for %s, got %q", path, got)
+		}
 	}
 }
 
@@ -260,6 +281,57 @@ func TestServerLogsInUsers(t *testing.T) {
 	}
 	if body.Token != "token-1" || body.Session.Subject != "service-account:test" || !body.Session.Admin {
 		t.Fatalf("unexpected login body: %#v", body)
+	}
+}
+
+func TestServerRegistersUserAndReturnsToken(t *testing.T) {
+	root := t.TempDir()
+	registry := tools.NewRegistry([]tools.Tool{{Name: "codex", Path: "/usr/bin/codex", Version: "test"}})
+	tenantStore := tenants.NewStore(nil)
+	handler := api.NewServer(api.Options{
+		Tools:   registry,
+		Tenants: tenantStore,
+		Files:   files.NewExplorer(root),
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/register", strings.NewReader(`{"username":"Team B","password":"secret"}`))
+	res := httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+	if res.Code != http.StatusCreated {
+		t.Fatalf("expected status 201, got %d: %s", res.Code, res.Body.String())
+	}
+	var body struct {
+		Token   string              `json:"token"`
+		User    tenants.UserSummary `json:"user"`
+		Session struct {
+			Tenant string `json:"tenant"`
+			Role   string `json:"role"`
+		} `json:"session"`
+	}
+	if err := json.Unmarshal(res.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode register response: %v", err)
+	}
+	if body.Token == "" || body.User.TenantID != "team-b" || body.Session.Tenant != "team-b" || body.Session.Role != "tenant" {
+		t.Fatalf("unexpected register response: %#v", body)
+	}
+	for _, path := range []string{
+		filepath.Join(root, "team-b", "homes", "team-default"),
+		filepath.Join(root, "team-b", "workspaces", "repo-main"),
+	} {
+		info, err := os.Stat(path)
+		if err != nil {
+			t.Fatalf("expected folder %s: %v", path, err)
+		}
+		if !info.IsDir() {
+			t.Fatalf("expected %s to be a directory", path)
+		}
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/register", strings.NewReader(`{"username":"Team B","password":"secret"}`))
+	res = httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+	if res.Code != http.StatusConflict {
+		t.Fatalf("expected duplicate status 409, got %d: %s", res.Code, res.Body.String())
 	}
 }
 
@@ -466,6 +538,24 @@ func TestServerRejectsTerminalWithoutToken(t *testing.T) {
 	}
 }
 
+func TestServerRoutesAppServerWebSocket(t *testing.T) {
+	handler := api.NewServer(api.Options{
+		AppServer: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.PathValue("tool") != "codex" {
+				t.Fatalf("expected codex path value, got %q", r.PathValue("tool"))
+			}
+			w.WriteHeader(http.StatusNoContent)
+		}),
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/app-server/codex", nil)
+	res := httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+	if res.Code != http.StatusNoContent {
+		t.Fatalf("expected status 204, got %d: %s", res.Code, res.Body.String())
+	}
+}
+
 func TestServerRunsTerminalWebSocket(t *testing.T) {
 	handler := newTestServer(t)
 	server := httptest.NewServer(handler)
@@ -549,6 +639,61 @@ func TestServerCreatesAndFetchesAuthorizedJob(t *testing.T) {
 	if fetched.Tool != "codex" {
 		t.Fatalf("expected codex job, got %#v", fetched)
 	}
+}
+
+func TestServerStreamsJobEventsOverWebSocket(t *testing.T) {
+	handler := newTestServer(t)
+	server := httptest.NewServer(handler)
+	defer server.Close()
+
+	payload := []byte(`{
+		"tenant": "team-a",
+		"tool": "codex",
+		"args": ["exec", "fix tests"],
+		"workspace": "repo-main",
+		"credential_profile": "team-default",
+		"timeout_seconds": 30
+	}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/jobs", bytes.NewReader(payload))
+	req.Header.Set("Authorization", "Bearer token-1")
+	res := httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+	if res.Code != http.StatusAccepted {
+		t.Fatalf("expected status 202, got %d: %s", res.Code, res.Body.String())
+	}
+	var created jobs.Job
+	if err := json.Unmarshal(res.Body.Bytes(), &created); err != nil {
+		t.Fatalf("decode created job: %v", err)
+	}
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/api/jobs/" + created.ID + "/events/ws?token=token-1"
+	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("dial job events websocket: %v", err)
+	}
+	defer conn.Close()
+
+	deadline := time.Now().Add(2 * time.Second)
+	seenStdout := false
+	for time.Now().Before(deadline) {
+		if err := conn.SetReadDeadline(time.Now().Add(500 * time.Millisecond)); err != nil {
+			t.Fatalf("set read deadline: %v", err)
+		}
+		var event jobs.Event
+		if err := conn.ReadJSON(&event); err != nil {
+			continue
+		}
+		if event.Type == jobs.EventStdout && strings.Contains(event.Message, "ok") {
+			seenStdout = true
+		}
+		if event.Type == jobs.EventExit {
+			if !seenStdout {
+				t.Fatalf("expected stdout before exit")
+			}
+			return
+		}
+	}
+	t.Fatal("job events websocket did not emit exit event")
 }
 
 func newTestServer(t *testing.T) http.Handler {

@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 
 	"agent-runtime/internal/api"
+	"agent-runtime/internal/appserver"
 	"agent-runtime/internal/config"
 	"agent-runtime/internal/credentials"
 	"agent-runtime/internal/execution"
@@ -65,13 +66,24 @@ func main() {
 			return credentialResolver.ResolveProfile(tenantID, profileID)
 		},
 	})
+	appServerHandler := appserver.NewHandler(appserver.Options{
+		Policies: tenantStore,
+		Tools:    toolRegistry,
+		ResolveWorkspace: func(tenantID string, workspaceID string) (string, error) {
+			return workspaceResolver.ResolveWorkspace(tenantID, workspaceID)
+		},
+		ResolveCredentialProfile: func(tenantID string, profileID string) (string, error) {
+			return credentialResolver.ResolveProfile(tenantID, profileID)
+		},
+	})
 
 	handler := api.NewServer(api.Options{
-		Jobs:     manager,
-		Tools:    toolRegistry,
-		Tenants:  tenantStore,
-		Terminal: terminalHandler,
-		Files:    fileExplorer,
+		Jobs:      manager,
+		Tools:     toolRegistry,
+		Tenants:   tenantStore,
+		Terminal:  terminalHandler,
+		AppServer: appServerHandler,
+		Files:     fileExplorer,
 		ResolveCredentialProfile: func(tenantID string, profileID string) (string, error) {
 			return credentialResolver.ResolveProfile(tenantID, profileID)
 		},

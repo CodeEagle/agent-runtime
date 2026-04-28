@@ -260,6 +260,40 @@ func (s *Store) UpsertUser(req UserRequest) (UserSummary, error) {
 	return userSummary(user, s.policies[user.Token]), nil
 }
 
+func (s *Store) RegisterUser(req UserRequest) (string, UserSummary, error) {
+	if s == nil {
+		return "", UserSummary{}, fmt.Errorf("tenant store is not configured")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	username := normalizeUsername(req.Username)
+	if username == "" {
+		return "", UserSummary{}, fmt.Errorf("username is required")
+	}
+	if _, exists := s.users[username]; exists {
+		return "", UserSummary{}, fmt.Errorf("user already exists")
+	}
+	tenantID := strings.TrimSpace(req.TenantID)
+	if tenantID == "" {
+		tenantID = defaultTenantID(username)
+	}
+	for _, p := range s.policies {
+		if p.TenantID == tenantID {
+			return "", UserSummary{}, fmt.Errorf("tenant already exists")
+		}
+	}
+
+	user, err := s.upsertUserLocked(req)
+	if err != nil {
+		return "", UserSummary{}, err
+	}
+	if err := s.saveLocked(); err != nil {
+		return "", UserSummary{}, err
+	}
+	return user.Token, userSummary(user, s.policies[user.Token]), nil
+}
+
 func (s *Store) DeleteUser(id string) error {
 	if s == nil {
 		return fmt.Errorf("tenant store is not configured")

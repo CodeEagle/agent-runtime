@@ -16,11 +16,13 @@ This repo currently contains the first runtime slice:
 - Credential profile home resolver.
 - Workspace resolver with symlink escape protection.
 - PTY-backed WebSocket terminal API for integrations and hidden UI actions.
+- WebSocket app-server proxy for tenant-isolated `codex app-server` sessions.
 - Tenant-aware file APIs for `tenants/<tenant>/workspaces` and `tenants/<tenant>/homes`, including bounded file preview.
 - CLI executable health probes based on the real runtime `PATH`; registered tools are not reported as available until the command is actually present.
 - Asynchronous job manager.
 - Local process executor.
-- HTTP API for health, readiness, status, login, tools, users, tenants, tenant tokens, files, jobs, job events, terminal sessions, and `/openapi.json`.
+- Swagger UI at `/docs`, backed by `/openapi.json`.
+- HTTP API for health, readiness, status, registration, login, tools, users, tenants, tenant tokens, files, jobs, job events, app-server sessions, terminal sessions, and `/openapi.json`.
 
 Not implemented yet:
 
@@ -34,7 +36,9 @@ Not implemented yet:
 GET  /api/health
 GET  /api/ready
 GET  /api/status
+GET  /docs
 GET  /openapi.json
+POST /api/register
 POST /api/login
 GET  /api/session
 GET  /api/tools
@@ -53,6 +57,8 @@ WS   /api/terminal
 POST /api/jobs
 GET  /api/jobs/{id}
 GET  /api/jobs/{id}/events
+WS   /api/jobs/{id}/events/ws
+WS   /api/app-server/codex
 ```
 
 Example job:
@@ -94,9 +100,23 @@ curl -sS \
   http://127.0.0.1:8080/api/jobs
 ```
 
+Open a real-time job event stream:
+
+```bash
+wscat -c 'ws://127.0.0.1:8080/api/jobs/<job-id>/events/ws?token=dev-token'
+```
+
+Run a tenant-isolated Codex app-server through Agent Runtime:
+
+```bash
+wscat -c 'ws://127.0.0.1:8080/api/app-server/codex?token=dev-token&tenant=team-a&workspace=repo-main&credential_profile=team-default'
+```
+
+Each app-server WebSocket connection starts its own `codex app-server` process with tenant-specific `HOME`, `CODEX_HOME`, working directory, and credential profile. Multiple tenants can run app-server sessions at the same time without sharing process state.
+
 `configs/local.json` registers the known CLI command names up front. They show as unavailable until the command is found in the runtime `PATH`. Install and authorize them from the Web UI's official-source cards, then use the job API against the shared tenant credential profile.
 
-Open the Web UI at `/`. The UI silently bootstraps the default `admin` / `admin` human session from the sample config, keeps terminal details hidden, and exposes a one-click API reference view similar to Swagger docs.
+Open the Web UI at `/`. The UI silently bootstraps the default `admin` / `admin` human session from the sample config, keeps terminal details hidden, and embeds the Swagger UI from `/docs` in the API view.
 
 `dev-token` remains an admin bearer token for service/API calls in the sample config. `team-a-token` remains a tenant bearer token that can only see and browse `team-a`; human Web UI login is handled through the `users` config.
 

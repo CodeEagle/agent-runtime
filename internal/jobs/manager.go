@@ -131,6 +131,7 @@ type Manager struct {
 	mu     sync.RWMutex
 	jobs   map[string]Job
 	events map[string][]Event
+	subs   map[string]map[chan Event]struct{}
 }
 
 func NewManager(options Options) *Manager {
@@ -142,6 +143,7 @@ func NewManager(options Options) *Manager {
 		executor:                 options.Executor,
 		jobs:                     make(map[string]Job),
 		events:                   make(map[string][]Event),
+		subs:                     make(map[string]map[chan Event]struct{}),
 	}
 }
 
@@ -264,6 +266,31 @@ func (m *Manager) Events(id string) []Event {
 	return append([]Event(nil), events...)
 }
 
+func (m *Manager) Subscribe(id string) ([]Event, <-chan Event, func(), bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if _, ok := m.jobs[id]; !ok {
+		return nil, nil, func() {}, false
+	}
+	ch := make(chan Event, 256)
+	if m.subs[id] == nil {
+		m.subs[id] = make(map[chan Event]struct{})
+	}
+	m.subs[id][ch] = struct{}{}
+	events := append([]Event(nil), m.events[id]...)
+	unsubscribe := func() {
+		m.mu.Lock()
+		defer m.mu.Unlock()
+		if subs := m.subs[id]; subs != nil {
+			delete(subs, ch)
+			if len(subs) == 0 {
+				delete(m.subs, id)
+			}
+		}
+	}
+	return events, ch, unsubscribe, true
+}
+
 func (m *Manager) run(spec ExecutionSpec) {
 	started := time.Now()
 	m.update(spec.JobID, func(job *Job) {
@@ -304,11 +331,22 @@ func (m *Manager) update(id string, update func(*Job)) {
 
 func (m *Manager) appendEvent(id string, event Event) {
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	if event.At.IsZero() {
 		event.At = time.Now()
 	}
 	m.events[id] = append(m.events[id], event)
+	subs := make([]chan Event, 0, len(m.subs[id]))
+	for ch := range m.subs[id] {
+		subs = append(subs, ch)
+	}
+	m.mu.Unlock()
+
+	for _, ch := range subs {
+		select {
+		case ch <- event:
+		default:
+		}
+	}
 }
 
 type managerSink struct {

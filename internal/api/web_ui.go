@@ -242,29 +242,22 @@ const webUIHTML = `<!doctype html>
     }
     .activity-links { display: grid; gap: 8px; }
     .activity-links a { display: block; padding: 8px 10px; border: 1px solid rgba(37, 215, 207, 0.3); border-radius: 8px; background: rgba(37, 215, 207, 0.08); overflow-wrap: anywhere; }
-    .api-shell { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 16px; align-items: start; }
-    .api-index { position: sticky; top: 104px; padding: 10px; display: grid; gap: 8px; }
-    .api-index button { text-align: left; padding: 9px 10px; background: transparent; color: var(--muted); }
-    .api-index button.active { border-color: rgba(37, 215, 207, 0.6); background: rgba(37, 215, 207, 0.1); color: var(--text); }
-    .api-docs { display: grid; gap: 12px; }
-    .api-card { border: 1px solid var(--line); border-radius: 8px; background: rgba(7, 12, 18, 0.72); overflow: hidden; }
-    .api-card-head { display: flex; gap: 10px; justify-content: space-between; align-items: center; padding: 13px 14px; border-bottom: 1px solid var(--line); }
-    .api-card-head h3 { margin: 0; font-size: 15px; }
-    .api-card-body { padding: 14px; display: grid; gap: 10px; color: var(--muted); }
-    .method { min-width: 58px; justify-content: center; font-family: var(--mono); }
-    .method.get { color: #b7ffd4; border-color: rgba(57, 217, 122, 0.38); }
-    .method.post { color: #c8dcff; border-color: rgba(76, 134, 255, 0.42); }
-    .method.delete { color: #ffb4c0; border-color: rgba(255, 92, 116, 0.42); }
-    .method.ws { color: #c5f9ff; border-color: rgba(37, 215, 207, 0.42); }
-    .code-block { position: relative; }
-    .code-block pre { margin: 0; padding: 12px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; background: rgba(3, 7, 12, 0.84); color: #d9e8f8; font-size: 12px; line-height: 1.45; }
-    .copy { position: absolute; right: 8px; top: 8px; min-height: 28px; font-size: 11px; }
+    .swagger-panel { min-height: calc(100vh - 262px); }
+    .swagger-frame {
+      width: 100%;
+      height: calc(100vh - 274px);
+      min-height: 720px;
+      display: block;
+      border: 0;
+      background: #0b1118;
+    }
+    .swagger-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .swagger-actions a { display: inline-grid; place-items: center; min-height: 34px; padding: 7px 10px; border: 1px solid var(--line-2); border-radius: 8px; background: rgba(6, 10, 15, 0.7); color: var(--muted); font-size: 12px; font-weight: 760; }
     .empty { padding: 18px; color: var(--muted); border: 1px dashed var(--line-2); border-radius: 8px; background: rgba(255, 255, 255, 0.025); }
     .toast { position: fixed; right: 18px; bottom: 18px; z-index: 10; display: none; max-width: 420px; padding: 12px 14px; border: 1px solid rgba(37, 215, 207, 0.42); border-radius: 8px; background: rgba(5, 10, 16, 0.96); color: var(--text); box-shadow: 0 20px 70px rgba(0, 0, 0, 0.45); }
     .toast.show { display: block; }
     @media (max-width: 1180px) {
-      .topbar, .hero, .home-grid, .api-shell { grid-template-columns: 1fr; }
-      .api-index { position: static; }
+      .topbar, .hero, .home-grid { grid-template-columns: 1fr; }
       .cli-grid { grid-template-columns: 1fr; }
     }
     @media (max-width: 760px) {
@@ -374,93 +367,22 @@ const webUIHTML = `<!doctype html>
       </section>
 
       <section class="view" id="api-view">
-        <div class="api-shell">
-          <aside class="panel api-index">
-            <button class="active" type="button" data-api-target="overview">Overview</button>
-            <button type="button" data-api-target="status">GET /api/status</button>
-            <button type="button" data-api-target="tools">GET /api/tools</button>
-            <button type="button" data-api-target="tool-update">POST /api/tools</button>
-            <button type="button" data-api-target="jobs">POST /api/jobs</button>
-            <button type="button" data-api-target="job-events">GET /api/jobs/{id}/events</button>
-            <button type="button" data-api-target="terminal-api">WS /api/terminal</button>
-          </aside>
-          <section class="api-docs">
-            <article class="api-card" id="overview">
-              <div class="api-card-head">
-                <h3 data-i18n="apiOverview">Agent Runtime API</h3>
-                <span class="badge">OpenAPI</span>
+        <section class="panel swagger-panel">
+          <div class="panel-header">
+            <div class="panel-title">
+              <span class="nav-icon">API</span>
+              <div>
+                <h2>Swagger UI</h2>
+                <p data-i18n="swaggerDesc">基于 /openapi.json 的交互式 API 文档。</p>
               </div>
-              <div class="api-card-body">
-                <p data-i18n="apiOverviewDesc">服务调用默认使用 Bearer Token。人用入口走首页按钮，服务间调用走 Job API。</p>
-                <div class="code-block"><button class="copy" data-copy="#base-url" type="button">Copy</button><pre id="base-url">Base URL: BASE_URL
-Authorization: Bearer &lt;token&gt;</pre></div>
-                <p><a href="/openapi.json" target="_blank" rel="noopener noreferrer">/openapi.json</a></p>
-              </div>
-            </article>
-
-            <article class="api-card" id="status">
-              <div class="api-card-head"><h3><span class="badge method get">GET</span> /api/status</h3></div>
-              <div class="api-card-body">
-                <p data-i18n="statusDesc">查询运行时状态、CLI 数量和使用者数量。</p>
-                <div class="code-block"><button class="copy" data-copy="#status-code" type="button">Copy</button><pre id="status-code">curl -s BASE_URL/api/status</pre></div>
-              </div>
-            </article>
-
-            <article class="api-card" id="tools">
-              <div class="api-card-head"><h3><span class="badge method get">GET</span> /api/tools</h3></div>
-              <div class="api-card-body">
-                <p data-i18n="toolsDesc">列出已注册 CLI，并可按租户和凭据配置探测真实 PATH 状态。</p>
-                <div class="code-block"><button class="copy" data-copy="#tools-code" type="button">Copy</button><pre id="tools-code">curl -s "BASE_URL/api/tools?tenant=team-a&credential_profile=team-default" \
-  -H "Authorization: Bearer &lt;token&gt;"</pre></div>
-              </div>
-            </article>
-
-            <article class="api-card" id="tool-update">
-              <div class="api-card-head"><h3><span class="badge method post">POST</span> /api/tools</h3></div>
-              <div class="api-card-body">
-                <p data-i18n="toolUpdateDesc">管理员注册或更新 CLI wrapper。普通安装建议使用首页 CLI Manager。</p>
-                <div class="code-block"><button class="copy" data-copy="#tool-code" type="button">Copy</button><pre id="tool-code">curl -s -X POST BASE_URL/api/tools \
-  -H "Authorization: Bearer &lt;admin-token&gt;" \
-  -H "Content-Type: application/json" \
-  -d '{"name":"codex","path":"codex","version":"official","credential_env":"CODEX_HOME","credential_subdir":".codex"}'</pre></div>
-              </div>
-            </article>
-
-            <article class="api-card" id="jobs">
-              <div class="api-card-head"><h3><span class="badge method post">POST</span> /api/jobs</h3></div>
-              <div class="api-card-body">
-                <p data-i18n="jobsDesc">服务间调用入口。调用方只能使用 token 策略允许的 tool、workspace 和 credential profile。</p>
-                <div class="code-block"><button class="copy" data-copy="#job-code" type="button">Copy</button><pre id="job-code">curl -s -X POST BASE_URL/api/jobs \
-  -H "Authorization: Bearer &lt;token&gt;" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "tenant": "team-a",
-    "tool": "codex",
-    "args": ["exec", "fix tests"],
-    "workspace": "repo-main",
-    "credential_profile": "team-default",
-    "timeout_seconds": 900
-  }'</pre></div>
-              </div>
-            </article>
-
-            <article class="api-card" id="job-events">
-              <div class="api-card-head"><h3><span class="badge method get">GET</span> /api/jobs/{id}/events</h3></div>
-              <div class="api-card-body">
-                <p data-i18n="eventsDesc">读取 job 事件流。当前实现返回 Server-Sent Events。</p>
-                <div class="code-block"><button class="copy" data-copy="#events-code" type="button">Copy</button><pre id="events-code">curl -N BASE_URL/api/jobs/&lt;job-id&gt;/events</pre></div>
-              </div>
-            </article>
-
-            <article class="api-card" id="terminal-api">
-              <div class="api-card-head"><h3><span class="badge method ws">WS</span> /api/terminal</h3></div>
-              <div class="api-card-body">
-                <p data-i18n="terminalApiDesc">交互式 PTY API 仍保留给集成方；首页不会显示终端。</p>
-                <div class="code-block"><button class="copy" data-copy="#terminal-code" type="button">Copy</button><pre id="terminal-code">WSS_BASE/api/terminal?token=&lt;token&gt;&tenant=team-a&workspace=repo-main&credential_profile=team-default</pre></div>
-              </div>
-            </article>
-          </section>
-        </div>
+            </div>
+            <div class="swagger-actions">
+              <a href="/docs" target="_blank" rel="noopener noreferrer">/docs</a>
+              <a href="/openapi.json" target="_blank" rel="noopener noreferrer">/openapi.json</a>
+            </div>
+          </div>
+          <iframe class="swagger-frame" id="swagger-frame" src="/docs" title="Swagger UI"></iframe>
+        </section>
       </section>
     </main>
   </div>
@@ -502,13 +424,17 @@ Authorization: Bearer &lt;token&gt;</pre></div>
         commandStarted: '已启动',
         commandStopped: '已停止',
         copied: '已复制',
+        swaggerDesc: '基于 /openapi.json 的交互式 API 文档。',
         apiOverview: 'Agent Runtime API',
-        apiOverviewDesc: '服务调用默认使用 Bearer Token。人用入口走首页按钮，服务间调用走 Job API。',
+        apiOverviewDesc: 'Swagger UI 会直接读取 /openapi.json。',
         statusDesc: '查询运行时状态、CLI 数量和使用者数量。',
+        registerDesc: '开放注册租户用户，返回调用自己租户资源的 Bearer Token。',
         toolsDesc: '列出已注册 CLI，并可按租户和凭据配置探测真实 PATH 状态。',
         toolUpdateDesc: '管理员注册或更新 CLI wrapper。普通安装建议使用首页 CLI Manager。',
         jobsDesc: '服务间调用入口。调用方只能使用 token 策略允许的 tool、workspace 和 credential profile。',
-        eventsDesc: '读取 job 事件流。当前实现返回 Server-Sent Events。',
+        eventsDesc: '读取 job 事件流。返回 Server-Sent Events，适合 curl 和服务端消费。',
+        eventsWSDesc: '实时 WebSocket job 事件流，stdout、stderr、status、exit 会逐条推送。',
+        appServerDesc: '为外部客户端启动 tenant 隔离的 codex app-server，并透明转发 WebSocket 消息。',
         terminalApiDesc: '交互式 PTY API 仍保留给集成方；首页不会显示终端。'
       },
       en: {
@@ -544,13 +470,17 @@ Authorization: Bearer &lt;token&gt;</pre></div>
         commandStarted: 'Started',
         commandStopped: 'Stopped',
         copied: 'Copied',
+        swaggerDesc: 'Interactive API documentation powered by /openapi.json.',
         apiOverview: 'Agent Runtime API',
-        apiOverviewDesc: 'Service calls use Bearer tokens by default. Human workflows use the home screen; service workflows use the Job API.',
+        apiOverviewDesc: 'Swagger UI reads /openapi.json directly.',
         statusDesc: 'Inspect runtime health, CLI counts, and user counts.',
+        registerDesc: 'Register a tenant user and receive a Bearer token for that user’s own tenant resources.',
         toolsDesc: 'List registered CLIs and probe tenant/profile-specific PATH health.',
         toolUpdateDesc: 'Admins can register or update CLI wrappers. Normal installs should use the home CLI Manager.',
         jobsDesc: 'Service-to-service execution entrypoint constrained by token policy.',
-        eventsDesc: 'Read job event output. Current implementation returns Server-Sent Events.',
+        eventsDesc: 'Read job event output as Server-Sent Events for curl and backend clients.',
+        eventsWSDesc: 'Real-time WebSocket job event stream for stdout, stderr, status, and exit events.',
+        appServerDesc: 'Start a tenant-isolated codex app-server for external clients and transparently proxy WebSocket messages.',
         terminalApiDesc: 'Interactive PTY API remains available for integrations; the home screen does not show a terminal.'
       }
     };
@@ -570,7 +500,8 @@ Authorization: Bearer &lt;token&gt;</pre></div>
       connected: false,
       actionBusy: false,
       activityText: '',
-      installPollTimer: null
+      installPollTimer: null,
+      cliRenderSignature: ''
     };
 
     const installSources = [
@@ -580,7 +511,7 @@ Authorization: Bearer &lt;token&gt;</pre></div>
       { label: 'OpenCode', fallback: 'OC', logo: 'https://opencode.ai/favicon-96x96-v3.png', tool: 'opencode', command: 'curl -fsSL https://opencode.ai/install | bash', verify: 'opencode --version', login: 'opencode auth login', docs: 'https://opencode.ai/download', provider: 'SST' },
       { label: 'iFlow', fallback: 'IF', logo: 'https://img.alicdn.com/imgextra/i1/O1CN01jgdyc81WIsdSepA4X_!!6000000002766-55-tps-162-162.svg', tool: 'iflow', command: 'bash -c "$(curl -fsSL https://gitee.com/iflow-ai/iflow-cli/raw/main/install.sh)"', verify: 'iflow --version', login: 'iflow', docs: 'https://platform.iflow.cn/cli/quickstart', provider: 'iFlow' },
       { label: 'Kimi', fallback: 'KM', logo: 'https://www.kimi.com/favicon.ico', tool: 'kimi', command: 'curl -LsSf https://code.kimi.com/install.sh | bash', verify: 'kimi --version', login: 'kimi', docs: 'https://www.kimi.com/code/docs/en/kimi-code-cli/getting-started.html', provider: 'Moonshot AI' },
-      { label: 'Qoder', fallback: 'QD', logo: 'https://docs.qoder.com/mintlify-assets/_mintlify/favicons/qoder/-6DIoH8zsEnnm9G9/_generated/favicon-dark/favicon-32x32.png', tool: 'qoder', command: 'curl -fsSL https://qoder.com/install | bash', verify: 'qodercli --version', login: 'qodercli', docs: 'https://docs.qoder.com/cli/quick-start', provider: 'Qoder' }
+      { label: 'Qoder', fallback: 'QD', logo: '/assets/logos/qoder.svg', tool: 'qoder', command: 'curl -fsSL https://qoder.com/install | bash', verify: 'qodercli --version', login: 'qodercli', docs: 'https://docs.qoder.com/cli/quick-start', provider: 'Qoder' }
     ];
 
     function $(id) { return document.getElementById(id); }
@@ -621,23 +552,10 @@ Authorization: Bearer &lt;token&gt;</pre></div>
       document.querySelectorAll('[data-i18n]').forEach(function(el) { el.textContent = t(el.dataset.i18n); });
       $('lang-zh').classList.toggle('active', state.lang === 'zh');
       $('lang-en').classList.toggle('active', state.lang === 'en');
-      applyApiExamples();
       updatePageTitle();
       renderSession();
       renderCliManager();
       renderActionState();
-    }
-
-    function applyApiExamples() {
-      const base = window.location.origin;
-      const wsBase = (window.location.protocol === 'https:' ? 'wss://' : 'ws://') + window.location.host;
-      $('base-url').textContent = 'Base URL: ' + base + '\nAuthorization: Bearer <token>';
-      $('status-code').textContent = 'curl -s ' + base + '/api/status';
-      $('tools-code').textContent = 'curl -s "' + base + '/api/tools?tenant=team-a&credential_profile=team-default" \\\n  -H "Authorization: Bearer <token>"';
-      $('tool-code').textContent = 'curl -s -X POST ' + base + '/api/tools \\\n  -H "Authorization: Bearer <admin-token>" \\\n  -H "Content-Type: application/json" \\\n  -d ' + "'{\"name\":\"codex\",\"path\":\"codex\",\"version\":\"official\",\"credential_env\":\"CODEX_HOME\",\"credential_subdir\":\".codex\"}'";
-      $('job-code').textContent = 'curl -s -X POST ' + base + '/api/jobs \\\n  -H "Authorization: Bearer <token>" \\\n  -H "Content-Type: application/json" \\\n  -d ' + "'{\\n    \"tenant\": \"team-a\",\\n    \"tool\": \"codex\",\\n    \"args\": [\"exec\", \"fix tests\"],\\n    \"workspace\": \"repo-main\",\\n    \"credential_profile\": \"team-default\",\\n    \"timeout_seconds\": 900\\n  }'";
-      $('events-code').textContent = 'curl -N ' + base + '/api/jobs/<job-id>/events';
-      $('terminal-code').textContent = wsBase + '/api/terminal?token=<token>&tenant=team-a&workspace=repo-main&credential_profile=team-default';
     }
 
     function updatePageTitle() {
@@ -915,7 +833,7 @@ Authorization: Bearer &lt;token&gt;</pre></div>
 
     function renderCliManager() {
       const known = new Map(state.tools.map(function(tool) { return [tool.name, tool]; }));
-      $('installed-panel').innerHTML = installSources.map(function(source) {
+      const cards = installSources.map(function(source) {
         const tool = known.get(source.tool) || { name: source.tool, available: false, health: 'missing' };
         const canCheck = state.toolsLoaded && state.toolsContextReady;
         const available = canCheck && !!tool.available;
@@ -939,6 +857,12 @@ Authorization: Bearer &lt;token&gt;</pre></div>
           '</div>' +
         '</article>';
       }).join('');
+      const signature = state.lang + '|' + state.toolsContextReady + '|' + state.tools.map(function(tool) {
+        return [tool.name, tool.available, tool.detected_version || tool.version || '', tool.health || '', tool.error || ''].join(':');
+      }).join('|');
+      if (signature === state.cliRenderSignature && $('installed-panel').innerHTML) return;
+      state.cliRenderSignature = signature;
+      $('installed-panel').innerHTML = cards;
       bindManagerButtons($('installed-panel'));
     }
 
@@ -969,24 +893,6 @@ Authorization: Bearer &lt;token&gt;</pre></div>
       updatePageTitle();
     }
 
-    function bindApiIndex() {
-      document.querySelectorAll('[data-api-target]').forEach(function(button) {
-        button.addEventListener('click', function() {
-          document.querySelectorAll('[data-api-target]').forEach(function(item) { item.classList.toggle('active', item === button); });
-          const target = document.getElementById(button.dataset.apiTarget);
-          if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        });
-      });
-      document.querySelectorAll('[data-copy]').forEach(function(button) {
-        button.addEventListener('click', async function() {
-          const target = document.querySelector(button.dataset.copy);
-          if (!target) return;
-          await navigator.clipboard.writeText(target.textContent);
-          showToast(t('copied'));
-        });
-      });
-    }
-
     document.querySelectorAll('[data-view]').forEach(function(button) { button.addEventListener('click', function() { switchView(button.dataset.view); }); });
     document.querySelectorAll('[data-lang]').forEach(function(button) {
       button.addEventListener('click', function() {
@@ -1002,7 +908,6 @@ Authorization: Bearer &lt;token&gt;</pre></div>
     $('profile').addEventListener('input', function() { updateContextLabels(); refreshTools().then(renderCliManager).catch(function() {}); });
     $('stop-action').addEventListener('click', function() { disconnectActionSocket(); showToast(t('commandStopped')); });
 
-    bindApiIndex();
     applyLanguage();
     renderActionState();
     refresh().catch(function(err) {

@@ -12,6 +12,8 @@ import (
 	"agent-runtime/internal/policy"
 	"agent-runtime/internal/tenants"
 	"agent-runtime/internal/tools"
+
+	"github.com/gorilla/websocket"
 )
 
 type ToolManager interface {
@@ -26,6 +28,7 @@ type TenantManager interface {
 	List() []tenants.Summary
 	ListFor(policy.Policy) []tenants.Summary
 	ListUsers() []tenants.UserSummary
+	RegisterUser(tenants.UserRequest) (string, tenants.UserSummary, error)
 	UpsertUser(tenants.UserRequest) (tenants.UserSummary, error)
 	DeleteUser(id string) error
 	ListTokens() []tenants.TokenSummary
@@ -38,6 +41,7 @@ type Options struct {
 	Tools                    ToolManager
 	Tenants                  TenantManager
 	Terminal                 http.Handler
+	AppServer                http.Handler
 	Files                    files.Explorer
 	ResolveCredentialProfile func(tenantID string, profileID string) (string, error)
 }
@@ -48,15 +52,18 @@ func NewServer(options Options) http.Handler {
 		tools:                    options.Tools,
 		tenants:                  options.Tenants,
 		terminal:                 options.Terminal,
+		appServer:                options.AppServer,
 		files:                    options.Files,
 		resolveCredentialProfile: options.ResolveCredentialProfile,
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{$}", server.webUI)
+	mux.HandleFunc("GET /docs", server.swaggerUI)
 	mux.HandleFunc("GET /api/health", server.health)
 	mux.HandleFunc("GET /api/ready", server.ready)
 	mux.HandleFunc("GET /api/status", server.status)
 	mux.HandleFunc("GET /openapi.json", server.openapi)
+	mux.HandleFunc("POST /api/register", server.register)
 	mux.HandleFunc("POST /api/login", server.login)
 	mux.HandleFunc("GET /api/session", server.session)
 	mux.HandleFunc("GET /api/tools", server.listTools)
@@ -73,6 +80,7 @@ func NewServer(options Options) http.Handler {
 	mux.HandleFunc("GET /api/files/raw", server.readFile)
 	mux.HandleFunc("GET /api/terminal", server.terminalSession)
 	mux.HandleFunc("GET /api/v1/terminal/ws", server.terminalSession)
+	mux.HandleFunc("GET /api/app-server/{tool}", server.appServerSession)
 	mux.HandleFunc("POST /api/jobs", server.createJob)
 	mux.HandleFunc("/api/jobs/", server.jobByID)
 	mux.Handle("GET /assets/", http.FileServerFS(assetsFS))
@@ -84,6 +92,7 @@ type server struct {
 	tools                    ToolManager
 	tenants                  TenantManager
 	terminal                 http.Handler
+	appServer                http.Handler
 	files                    files.Explorer
 	resolveCredentialProfile func(tenantID string, profileID string) (string, error)
 }
@@ -96,6 +105,12 @@ func (s *server) webUI(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(webUIHTML))
+}
+
+func (s *server) swaggerUI(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(swaggerUIHTML))
 }
 
 func (s *server) health(w http.ResponseWriter, r *http.Request) {
@@ -146,6 +161,12 @@ func (s *server) openapi(w http.ResponseWriter, r *http.Request) {
 					},
 				},
 			},
+			"/api/register": map[string]any{
+				"post": map[string]any{"summary": "Register a tenant user and receive a bearer token", "responses": map[string]any{"201": map[string]any{"description": "User registered"}}},
+			},
+			"/api/login": map[string]any{
+				"post": map[string]any{"summary": "Login and receive the current user's bearer token", "responses": map[string]any{"200": map[string]any{"description": "Session token"}}},
+			},
 			"/api/tools": map[string]any{
 				"get":  map[string]any{"summary": "List CLI tools", "responses": map[string]any{"200": map[string]any{"description": "CLI tool list"}}},
 				"post": map[string]any{"summary": "Register or update CLI tool", "responses": map[string]any{"201": map[string]any{"description": "CLI tool saved"}}},
@@ -158,6 +179,12 @@ func (s *server) openapi(w http.ResponseWriter, r *http.Request) {
 			},
 			"/api/jobs/{id}/events": map[string]any{
 				"get": map[string]any{"summary": "Read job events as Server-Sent Events", "responses": map[string]any{"200": map[string]any{"description": "Job events"}}},
+			},
+			"/api/jobs/{id}/events/ws": map[string]any{
+				"get": map[string]any{"summary": "Read job events as a WebSocket stream", "responses": map[string]any{"101": map[string]any{"description": "WebSocket upgrade"}}},
+			},
+			"/api/app-server/{tool}": map[string]any{
+				"get": map[string]any{"summary": "Open a tool app-server WebSocket proxy", "responses": map[string]any{"101": map[string]any{"description": "WebSocket upgrade"}}},
 			},
 			"/api/terminal": map[string]any{
 				"get": map[string]any{"summary": "Open an interactive PTY WebSocket", "responses": map[string]any{"101": map[string]any{"description": "WebSocket upgrade"}}},
@@ -292,6 +319,64 @@ func (s *server) login(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"token":   token,
 		"session": sessionBody(p),
+	})
+}
+
+func (s *server) register(w http.ResponseWriter, r *http.Request) {
+	if s.tenants == nil {
+		writeError(w, http.StatusServiceUnavailable, "tenant store is not configured")
+		return
+	}
+	var req struct {
+		Username string `json:"username"`
+		Password string `json:"password"`
+	}
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("invalid register request: %v", err))
+		return
+	}
+
+	allowedTools := []string{"*"}
+	if s.tools != nil {
+		toolsList := s.tools.List()
+		allowedTools = make([]string, 0, len(toolsList))
+		for _, tool := range toolsList {
+			allowedTools = append(allowedTools, tool.Name)
+		}
+		if len(allowedTools) == 0 {
+			allowedTools = []string{"*"}
+		}
+	}
+	token, user, err := s.tenants.RegisterUser(tenants.UserRequest{
+		Username:                  req.Username,
+		Password:                  req.Password,
+		AllowedTools:              allowedTools,
+		AllowedWorkspaces:         []string{"repo-*"},
+		AllowedCredentialProfiles: []string{"team-default"},
+		AllowTerminal:             true,
+		MaxJobSeconds:             900,
+	})
+	if err != nil {
+		status := http.StatusBadRequest
+		if strings.Contains(err.Error(), "already exists") {
+			status = http.StatusConflict
+		}
+		writeError(w, status, err.Error())
+		return
+	}
+	if s.files.Configured() {
+		if err := s.files.EnsureTenant(user.TenantID, user.AllowedCredentialProfiles, user.AllowedWorkspaces); err != nil {
+			writeError(w, http.StatusInternalServerError, fmt.Sprintf("create tenant folders: %v", err))
+			return
+		}
+	}
+	p, _ := s.tenants.Lookup(token)
+	writeJSON(w, http.StatusCreated, map[string]any{
+		"token":   token,
+		"session": sessionBody(p),
+		"user":    user,
 	})
 }
 
@@ -446,6 +531,14 @@ func (s *server) terminalSession(w http.ResponseWriter, r *http.Request) {
 	s.terminal.ServeHTTP(w, r)
 }
 
+func (s *server) appServerSession(w http.ResponseWriter, r *http.Request) {
+	if s.appServer == nil {
+		writeError(w, http.StatusServiceUnavailable, "app-server proxy is not configured")
+		return
+	}
+	s.appServer.ServeHTTP(w, r)
+}
+
 func (s *server) createJob(w http.ResponseWriter, r *http.Request) {
 	if s.jobs == nil {
 		writeError(w, http.StatusServiceUnavailable, "job manager is not configured")
@@ -484,6 +577,11 @@ func (s *server) jobByID(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "job not found")
 		return
 	}
+	if strings.HasSuffix(rest, "/events/ws") {
+		id := strings.TrimSuffix(rest, "/events/ws")
+		s.jobEventsWS(w, r, id)
+		return
+	}
 	if strings.HasSuffix(rest, "/events") {
 		id := strings.TrimSuffix(rest, "/events")
 		s.jobEvents(w, r, id)
@@ -501,13 +599,79 @@ func (s *server) jobByID(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, job)
 }
 
+func (s *server) jobEventsWS(w http.ResponseWriter, r *http.Request, id string) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	job, ok := s.jobs.Get(id)
+	if !ok {
+		writeError(w, http.StatusNotFound, "job not found")
+		return
+	}
+	if !s.authorizeJobEvents(w, r, job) {
+		return
+	}
+	events, ch, unsubscribe, ok := s.jobs.Subscribe(id)
+	if !ok {
+		writeError(w, http.StatusNotFound, "job not found")
+		return
+	}
+	defer unsubscribe()
+
+	upgrader := websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		return
+	}
+	defer conn.Close()
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for {
+			if _, _, err := conn.NextReader(); err != nil {
+				return
+			}
+		}
+	}()
+
+	for _, event := range events {
+		if err := conn.WriteJSON(event); err != nil {
+			return
+		}
+		if event.Type == jobs.EventExit {
+			return
+		}
+	}
+	for {
+		select {
+		case event := <-ch:
+			if err := conn.WriteJSON(event); err != nil {
+				return
+			}
+			if event.Type == jobs.EventExit {
+				return
+			}
+		case <-done:
+			return
+		case <-r.Context().Done():
+			return
+		}
+	}
+}
+
 func (s *server) jobEvents(w http.ResponseWriter, r *http.Request, id string) {
 	if r.Method != http.MethodGet {
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
-	if _, ok := s.jobs.Get(id); !ok {
+	job, ok := s.jobs.Get(id)
+	if !ok {
 		writeError(w, http.StatusNotFound, "job not found")
+		return
+	}
+	if !s.authorizeJobEvents(w, r, job) {
 		return
 	}
 
@@ -528,6 +692,25 @@ func (s *server) jobEvents(w http.ResponseWriter, r *http.Request, id string) {
 			return
 		}
 	}
+}
+
+func (s *server) authorizeJobEvents(w http.ResponseWriter, r *http.Request, job jobs.Job) bool {
+	p, ok := s.authenticate(r)
+	if !ok {
+		token := strings.TrimSpace(r.URL.Query().Get("token"))
+		if token != "" && s.tenants != nil {
+			p, ok = s.tenants.Lookup(token)
+		}
+	}
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "missing or invalid bearer token")
+		return false
+	}
+	if err := p.AuthorizeTenant(job.TenantID); err != nil {
+		writeError(w, http.StatusForbidden, err.Error())
+		return false
+	}
+	return true
 }
 
 func bearerToken(r *http.Request) (string, bool) {
