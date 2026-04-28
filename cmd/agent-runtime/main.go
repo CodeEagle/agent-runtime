@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"agent-runtime/internal/actions"
 	"agent-runtime/internal/api"
 	"agent-runtime/internal/appserver"
 	"agent-runtime/internal/config"
@@ -15,7 +16,6 @@ import (
 	"agent-runtime/internal/files"
 	"agent-runtime/internal/jobs"
 	"agent-runtime/internal/tenants"
-	"agent-runtime/internal/terminal"
 	"agent-runtime/internal/tools"
 	"agent-runtime/internal/workspaces"
 )
@@ -56,7 +56,7 @@ func main() {
 		},
 		Executor: execution.LocalExecutor{},
 	})
-	terminalHandler := terminal.NewHandler(terminal.Options{
+	actionManager := actions.NewManager(actions.Options{
 		Policies: tenantStore,
 		Tools:    toolRegistry,
 		ResolveWorkspace: func(tenantID string, workspaceID string) (string, error) {
@@ -79,9 +79,9 @@ func main() {
 
 	handler := api.NewServer(api.Options{
 		Jobs:      manager,
+		Actions:   actionManager,
 		Tools:     toolRegistry,
 		Tenants:   tenantStore,
-		Terminal:  terminalHandler,
 		AppServer: appServerHandler,
 		Files:     fileExplorer,
 		ResolveCredentialProfile: func(tenantID string, profileID string) (string, error) {

@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 
+	"agent-runtime/internal/actions"
 	"agent-runtime/internal/files"
 	"agent-runtime/internal/jobs"
 	"agent-runtime/internal/policy"
@@ -38,9 +39,9 @@ type TenantManager interface {
 
 type Options struct {
 	Jobs                     *jobs.Manager
+	Actions                  *actions.Manager
 	Tools                    ToolManager
 	Tenants                  TenantManager
-	Terminal                 http.Handler
 	AppServer                http.Handler
 	Files                    files.Explorer
 	ResolveCredentialProfile func(tenantID string, profileID string) (string, error)
@@ -49,9 +50,9 @@ type Options struct {
 func NewServer(options Options) http.Handler {
 	server := &server{
 		jobs:                     options.Jobs,
+		actions:                  options.Actions,
 		tools:                    options.Tools,
 		tenants:                  options.Tenants,
-		terminal:                 options.Terminal,
 		appServer:                options.AppServer,
 		files:                    options.Files,
 		resolveCredentialProfile: options.ResolveCredentialProfile,
@@ -69,6 +70,8 @@ func NewServer(options Options) http.Handler {
 	mux.HandleFunc("GET /api/tools", server.listTools)
 	mux.HandleFunc("POST /api/tools", server.upsertTool)
 	mux.HandleFunc("DELETE /api/tools/{name}", server.deleteTool)
+	mux.HandleFunc("POST /api/cli-actions", server.createCLIAction)
+	mux.HandleFunc("/api/cli-actions/", server.cliActionByID)
 	mux.HandleFunc("GET /api/tenants", server.listTenants)
 	mux.HandleFunc("GET /api/users", server.listUsers)
 	mux.HandleFunc("POST /api/users", server.upsertUser)
@@ -78,8 +81,6 @@ func NewServer(options Options) http.Handler {
 	mux.HandleFunc("DELETE /api/tokens/{id}", server.deleteToken)
 	mux.HandleFunc("GET /api/files", server.listFiles)
 	mux.HandleFunc("GET /api/files/raw", server.readFile)
-	mux.HandleFunc("GET /api/terminal", server.terminalSession)
-	mux.HandleFunc("GET /api/v1/terminal/ws", server.terminalSession)
 	mux.HandleFunc("GET /api/app-server/{tool}", server.appServerSession)
 	mux.HandleFunc("POST /api/jobs", server.createJob)
 	mux.HandleFunc("/api/jobs/", server.jobByID)
@@ -89,9 +90,9 @@ func NewServer(options Options) http.Handler {
 
 type server struct {
 	jobs                     *jobs.Manager
+	actions                  *actions.Manager
 	tools                    ToolManager
 	tenants                  TenantManager
-	terminal                 http.Handler
 	appServer                http.Handler
 	files                    files.Explorer
 	resolveCredentialProfile func(tenantID string, profileID string) (string, error)
@@ -137,11 +138,10 @@ func (s *server) status(w http.ResponseWriter, r *http.Request) {
 		userCount = len(s.tenants.ListUsers())
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"status":   "ok",
-		"tools":    toolCount,
-		"tenants":  tenantCount,
-		"users":    userCount,
-		"terminal": s.terminal != nil,
+		"status":  "ok",
+		"tools":   toolCount,
+		"tenants": tenantCount,
+		"users":   userCount,
 	})
 }
 
@@ -171,6 +171,16 @@ func (s *server) openapi(w http.ResponseWriter, r *http.Request) {
 				"get":  map[string]any{"summary": "List CLI tools", "responses": map[string]any{"200": map[string]any{"description": "CLI tool list"}}},
 				"post": map[string]any{"summary": "Register or update CLI tool", "responses": map[string]any{"201": map[string]any{"description": "CLI tool saved"}}},
 			},
+			"/api/cli-actions": map[string]any{
+				"post": map[string]any{"summary": "Start a background CLI install, auth, or verify action", "responses": map[string]any{"202": map[string]any{"description": "CLI action accepted"}}},
+			},
+			"/api/cli-actions/{id}": map[string]any{
+				"get":    map[string]any{"summary": "Fetch background CLI action status and captured auth hints", "responses": map[string]any{"200": map[string]any{"description": "CLI action status"}}},
+				"delete": map[string]any{"summary": "Cancel a running CLI action", "responses": map[string]any{"204": map[string]any{"description": "CLI action canceled"}}},
+			},
+			"/api/cli-actions/{id}/input": map[string]any{
+				"post": map[string]any{"summary": "Send a single input line to a running CLI auth action", "responses": map[string]any{"202": map[string]any{"description": "Input accepted"}}},
+			},
 			"/api/jobs": map[string]any{
 				"post": map[string]any{"summary": "Create a CLI job", "responses": map[string]any{"202": map[string]any{"description": "Job accepted"}}},
 			},
@@ -185,9 +195,6 @@ func (s *server) openapi(w http.ResponseWriter, r *http.Request) {
 			},
 			"/api/app-server/{tool}": map[string]any{
 				"get": map[string]any{"summary": "Open a tool app-server WebSocket proxy", "responses": map[string]any{"101": map[string]any{"description": "WebSocket upgrade"}}},
-			},
-			"/api/terminal": map[string]any{
-				"get": map[string]any{"summary": "Open an interactive PTY WebSocket", "responses": map[string]any{"101": map[string]any{"description": "WebSocket upgrade"}}},
 			},
 		},
 	})
@@ -283,6 +290,108 @@ func (s *server) deleteTool(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (s *server) createCLIAction(w http.ResponseWriter, r *http.Request) {
+	if s.actions == nil {
+		writeError(w, http.StatusServiceUnavailable, "CLI action manager is not configured")
+		return
+	}
+	token, ok := bearerToken(r)
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "missing bearer token")
+		return
+	}
+	var req actions.CreateRequest
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("invalid CLI action request: %v", err))
+		return
+	}
+	req.Token = token
+	action, err := s.actions.Create(r.Context(), req)
+	if err != nil {
+		status := http.StatusForbidden
+		if strings.Contains(err.Error(), "not registered") || strings.Contains(err.Error(), "not configured") || strings.Contains(err.Error(), "unsupported") {
+			status = http.StatusBadRequest
+		}
+		writeError(w, status, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusAccepted, action)
+}
+
+func (s *server) cliActionByID(w http.ResponseWriter, r *http.Request) {
+	if s.actions == nil {
+		writeError(w, http.StatusServiceUnavailable, "CLI action manager is not configured")
+		return
+	}
+	rest := strings.TrimPrefix(r.URL.Path, "/api/cli-actions/")
+	if rest == "" || strings.Contains(rest, "/../") {
+		writeError(w, http.StatusNotFound, "CLI action not found")
+		return
+	}
+	if strings.HasSuffix(rest, "/input") {
+		id := strings.TrimSuffix(rest, "/input")
+		s.cliActionInput(w, r, id)
+		return
+	}
+	action, ok := s.actions.Get(rest)
+	if !ok {
+		writeError(w, http.StatusNotFound, "CLI action not found")
+		return
+	}
+	if !s.authorizeTenantAccess(w, r, action.TenantID) {
+		return
+	}
+	switch r.Method {
+	case http.MethodGet:
+		writeJSON(w, http.StatusOK, action)
+	case http.MethodDelete:
+		if err := s.actions.Cancel(rest); err != nil {
+			status := http.StatusConflict
+			if strings.Contains(err.Error(), "not found") {
+				status = http.StatusNotFound
+			}
+			writeError(w, status, err.Error())
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	default:
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+	}
+}
+
+func (s *server) cliActionInput(w http.ResponseWriter, r *http.Request, id string) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	action, ok := s.actions.Get(id)
+	if !ok {
+		writeError(w, http.StatusNotFound, "CLI action not found")
+		return
+	}
+	if !s.authorizeTenantAccess(w, r, action.TenantID) {
+		return
+	}
+	var req actions.InputRequest
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("invalid CLI input request: %v", err))
+		return
+	}
+	if strings.TrimSpace(req.Data) == "" {
+		writeError(w, http.StatusBadRequest, "input data is required")
+		return
+	}
+	if err := s.actions.Input(id, req.Data); err != nil {
+		writeError(w, http.StatusConflict, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusAccepted, map[string]string{"status": "accepted"})
+}
+
 func (s *server) listTenants(w http.ResponseWriter, r *http.Request) {
 	if s.tenants == nil {
 		writeError(w, http.StatusServiceUnavailable, "tenant store is not configured")
@@ -355,7 +464,6 @@ func (s *server) register(w http.ResponseWriter, r *http.Request) {
 		AllowedTools:              allowedTools,
 		AllowedWorkspaces:         []string{"repo-*"},
 		AllowedCredentialProfiles: []string{"team-default"},
-		AllowTerminal:             true,
 		MaxJobSeconds:             900,
 	})
 	if err != nil {
@@ -521,14 +629,6 @@ func (s *server) readFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, content)
-}
-
-func (s *server) terminalSession(w http.ResponseWriter, r *http.Request) {
-	if s.terminal == nil {
-		writeError(w, http.StatusServiceUnavailable, "terminal is not configured")
-		return
-	}
-	s.terminal.ServeHTTP(w, r)
 }
 
 func (s *server) appServerSession(w http.ResponseWriter, r *http.Request) {
@@ -713,6 +813,19 @@ func (s *server) authorizeJobEvents(w http.ResponseWriter, r *http.Request, job 
 	return true
 }
 
+func (s *server) authorizeTenantAccess(w http.ResponseWriter, r *http.Request, tenantID string) bool {
+	p, ok := s.authenticate(r)
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "missing or invalid bearer token")
+		return false
+	}
+	if err := p.AuthorizeTenant(tenantID); err != nil {
+		writeError(w, http.StatusForbidden, err.Error())
+		return false
+	}
+	return true
+}
+
 func bearerToken(r *http.Request) (string, bool) {
 	header := r.Header.Get("Authorization")
 	const prefix = "Bearer "
@@ -769,7 +882,6 @@ func sessionBody(p policy.Policy) map[string]any {
 		"allowed_tools":               p.AllowedTools,
 		"allowed_workspaces":          p.AllowedWorkspaces,
 		"allowed_credential_profiles": p.AllowedCredentialProfiles,
-		"allow_terminal":              p.AllowTerminal,
 		"max_job_seconds":             int(p.MaxJobDuration.Seconds()),
 	}
 }

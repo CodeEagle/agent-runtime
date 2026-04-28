@@ -24,7 +24,6 @@ type Summary struct {
 	AllowedTools       []string `json:"allowed_tools"`
 	WorkspacePatterns  []string `json:"workspace_patterns"`
 	CredentialProfiles []string `json:"credential_profiles"`
-	AllowTerminal      bool     `json:"allow_terminal"`
 	TokenCount         int      `json:"token_count"`
 }
 
@@ -36,7 +35,6 @@ type TokenRequest struct {
 	AllowedTools              []string `json:"allowed_tools"`
 	AllowedWorkspaces         []string `json:"allowed_workspaces"`
 	AllowedCredentialProfiles []string `json:"allowed_credential_profiles"`
-	AllowTerminal             bool     `json:"allow_terminal"`
 	MaxJobSeconds             int      `json:"max_job_seconds"`
 }
 
@@ -49,7 +47,6 @@ type TokenSummary struct {
 	AllowedTools              []string `json:"allowed_tools"`
 	AllowedWorkspaces         []string `json:"allowed_workspaces"`
 	AllowedCredentialProfiles []string `json:"allowed_credential_profiles"`
-	AllowTerminal             bool     `json:"allow_terminal"`
 	MaxJobSeconds             int      `json:"max_job_seconds"`
 }
 
@@ -64,7 +61,6 @@ type UserRequest struct {
 	AllowedTools              []string `json:"allowed_tools"`
 	AllowedWorkspaces         []string `json:"allowed_workspaces"`
 	AllowedCredentialProfiles []string `json:"allowed_credential_profiles"`
-	AllowTerminal             bool     `json:"allow_terminal"`
 	MaxJobSeconds             int      `json:"max_job_seconds"`
 }
 
@@ -77,7 +73,6 @@ type UserSummary struct {
 	AllowedTools              []string `json:"allowed_tools"`
 	AllowedWorkspaces         []string `json:"allowed_workspaces"`
 	AllowedCredentialProfiles []string `json:"allowed_credential_profiles"`
-	AllowTerminal             bool     `json:"allow_terminal"`
 	MaxJobSeconds             int      `json:"max_job_seconds"`
 }
 
@@ -392,7 +387,6 @@ func (s *Store) upsertLocked(req TokenRequest) error {
 		AllowedTools:              cleanList(req.AllowedTools),
 		AllowedWorkspaces:         cleanList(req.AllowedWorkspaces),
 		AllowedCredentialProfiles: cleanList(req.AllowedCredentialProfiles),
-		AllowTerminal:             req.AllowTerminal,
 		MaxJobDuration:            time.Duration(req.MaxJobSeconds) * time.Second,
 	}
 	return nil
@@ -428,7 +422,6 @@ func (s *Store) upsertUserLocked(req UserRequest) (storedUser, error) {
 		len(req.AllowedTools) == 0 &&
 		len(req.AllowedWorkspaces) == 0 &&
 		len(req.AllowedCredentialProfiles) == 0 &&
-		!req.AllowTerminal &&
 		req.MaxJobSeconds == 0
 	if existingPolicy, ok := s.policies[req.Token]; ok && shouldInheritPolicy {
 		req.SubjectID = existingPolicy.SubjectID
@@ -437,7 +430,6 @@ func (s *Store) upsertUserLocked(req UserRequest) (storedUser, error) {
 		req.AllowedTools = append([]string(nil), existingPolicy.AllowedTools...)
 		req.AllowedWorkspaces = append([]string(nil), existingPolicy.AllowedWorkspaces...)
 		req.AllowedCredentialProfiles = append([]string(nil), existingPolicy.AllowedCredentialProfiles...)
-		req.AllowTerminal = existingPolicy.AllowTerminal
 		if existingPolicy.MaxJobDuration > 0 {
 			req.MaxJobSeconds = int(existingPolicy.MaxJobDuration / time.Second)
 		}
@@ -466,7 +458,6 @@ func (s *Store) upsertUserLocked(req UserRequest) (storedUser, error) {
 		AllowedTools:              req.AllowedTools,
 		AllowedWorkspaces:         req.AllowedWorkspaces,
 		AllowedCredentialProfiles: req.AllowedCredentialProfiles,
-		AllowTerminal:             req.AllowTerminal,
 		MaxJobSeconds:             req.MaxJobSeconds,
 	}
 	if err := s.upsertLocked(tokenReq); err != nil {
@@ -554,7 +545,6 @@ func summariesFor(policies map[string]policy.Policy, actor *policy.Policy) []Sum
 		summary.AllowedTools = appendUniqueAll(summary.AllowedTools, p.AllowedTools)
 		summary.WorkspacePatterns = appendUniqueAll(summary.WorkspacePatterns, p.AllowedWorkspaces)
 		summary.CredentialProfiles = appendUniqueAll(summary.CredentialProfiles, p.AllowedCredentialProfiles)
-		summary.AllowTerminal = summary.AllowTerminal || p.AllowTerminal
 		summary.TokenCount++
 	}
 
@@ -581,7 +571,6 @@ func tokenRequest(token string, p policy.Policy) TokenRequest {
 		AllowedTools:              append([]string(nil), p.AllowedTools...),
 		AllowedWorkspaces:         append([]string(nil), p.AllowedWorkspaces...),
 		AllowedCredentialProfiles: append([]string(nil), p.AllowedCredentialProfiles...),
-		AllowTerminal:             p.AllowTerminal,
 		MaxJobSeconds:             int(p.MaxJobDuration / time.Second),
 	}
 }
@@ -596,7 +585,6 @@ func tokenSummary(token string, p policy.Policy) TokenSummary {
 		AllowedTools:              append([]string(nil), p.AllowedTools...),
 		AllowedWorkspaces:         append([]string(nil), p.AllowedWorkspaces...),
 		AllowedCredentialProfiles: append([]string(nil), p.AllowedCredentialProfiles...),
-		AllowTerminal:             p.AllowTerminal,
 		MaxJobSeconds:             int(p.MaxJobDuration / time.Second),
 	}
 }
@@ -612,7 +600,6 @@ func userRequest(user storedUser, p policy.Policy) UserRequest {
 		AllowedTools:              append([]string(nil), p.AllowedTools...),
 		AllowedWorkspaces:         append([]string(nil), p.AllowedWorkspaces...),
 		AllowedCredentialProfiles: append([]string(nil), p.AllowedCredentialProfiles...),
-		AllowTerminal:             p.AllowTerminal,
 		MaxJobSeconds:             int(p.MaxJobDuration / time.Second),
 	}
 }
@@ -627,7 +614,6 @@ func userSummary(user storedUser, p policy.Policy) UserSummary {
 		AllowedTools:              append([]string(nil), p.AllowedTools...),
 		AllowedWorkspaces:         append([]string(nil), p.AllowedWorkspaces...),
 		AllowedCredentialProfiles: append([]string(nil), p.AllowedCredentialProfiles...),
-		AllowTerminal:             p.AllowTerminal,
 		MaxJobSeconds:             int(p.MaxJobDuration / time.Second),
 	}
 }

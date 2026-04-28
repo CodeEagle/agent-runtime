@@ -12,12 +12,12 @@ import (
 	"testing"
 	"time"
 
+	"agent-runtime/internal/actions"
 	"agent-runtime/internal/api"
 	"agent-runtime/internal/files"
 	"agent-runtime/internal/jobs"
 	"agent-runtime/internal/policy"
 	"agent-runtime/internal/tenants"
-	"agent-runtime/internal/terminal"
 	"agent-runtime/internal/tools"
 
 	"github.com/gorilla/websocket"
@@ -87,7 +87,10 @@ func TestServerServesWebUIAtRoot(t *testing.T) {
 		t.Fatalf("expected UI to use a silent default session without visible login controls, got %q", body)
 	}
 	if strings.Contains(body, "/assets/xterm/xterm.js") || strings.Contains(body, `id="terminal-container"`) {
-		t.Fatalf("expected UI to hide the terminal surface and xterm bundle, got %q", body)
+		t.Fatalf("expected UI to remove the terminal surface and xterm bundle, got %q", body)
+	}
+	if strings.Contains(body, "/api/v1/terminal/ws") || strings.Contains(body, "/api/terminal") || strings.Contains(body, "new WebSocket") {
+		t.Fatalf("expected UI actions to use background CLI actions instead of terminal websockets, got %q", body)
 	}
 	if strings.Contains(body, `id="tool-path"`) || strings.Contains(body, `id="tool-name"`) {
 		t.Fatalf("expected UI to use official install sources instead of manual path registration")
@@ -100,18 +103,8 @@ func TestServerServesWebUIAtRoot(t *testing.T) {
 			t.Fatalf("expected Swagger interface marker %q", marker)
 		}
 	}
-	for _, marker := range []string{
-		"https://claude.ai/install.sh",
-		"npm install -g @openai/codex",
-		"npm install -g @google/gemini-cli",
-		"https://opencode.ai/install",
-		"https://gitee.com/iflow-ai/iflow-cli/raw/main/install.sh",
-		"https://code.kimi.com/install.sh",
-		"https://qoder.com/install",
-	} {
-		if !strings.Contains(body, marker) {
-			t.Fatalf("expected UI to include official install source %q", marker)
-		}
+	if !strings.Contains(body, "/api/cli-actions") || !strings.Contains(body, `data-cli-action="install"`) || !strings.Contains(body, `data-cli-action="auth"`) {
+		t.Fatalf("expected UI to start background CLI actions, got %q", body)
 	}
 	for _, marker := range []string{
 		"/assets/logos/claude.svg",
@@ -174,10 +167,13 @@ func TestServerServesOpenAPI(t *testing.T) {
 	if body.OpenAPI != "3.1.0" || body.Info.Title != "Agent Runtime API" {
 		t.Fatalf("unexpected openapi metadata: %#v", body)
 	}
-	for _, path := range []string{"/api/status", "/api/register", "/api/tools", "/api/jobs", "/api/jobs/{id}/events/ws", "/api/app-server/{tool}", "/api/terminal"} {
+	for _, path := range []string{"/api/status", "/api/register", "/api/tools", "/api/cli-actions", "/api/cli-actions/{id}", "/api/cli-actions/{id}/input", "/api/jobs", "/api/jobs/{id}/events/ws", "/api/app-server/{tool}"} {
 		if _, ok := body.Paths[path]; !ok {
 			t.Fatalf("expected openapi path %s in %#v", path, body.Paths)
 		}
+	}
+	if _, ok := body.Paths["/api/terminal"]; ok {
+		t.Fatalf("expected terminal path to be removed from openapi")
 	}
 }
 
@@ -215,21 +211,6 @@ func TestServerServesVendoredLogoAsset(t *testing.T) {
 		if got := res.Header().Get("Content-Type"); !strings.Contains(got, "image/svg+xml") {
 			t.Fatalf("expected SVG content type for %s, got %q", path, got)
 		}
-	}
-}
-
-func TestServerServesVendoredXtermAsset(t *testing.T) {
-	handler := newTestServer(t)
-
-	req := httptest.NewRequest(http.MethodGet, "/assets/xterm/xterm.css", nil)
-	res := httptest.NewRecorder()
-	handler.ServeHTTP(res, req)
-
-	if res.Code != http.StatusOK {
-		t.Fatalf("expected status 200, got %d: %s", res.Code, res.Body.String())
-	}
-	if got := res.Header().Get("Content-Type"); !strings.Contains(got, "text/css") {
-		t.Fatalf("expected CSS content type, got %q", got)
 	}
 }
 
@@ -355,9 +336,6 @@ func TestServerListsTenants(t *testing.T) {
 	if len(body.Tenants) != 1 || body.Tenants[0].ID != "team-a" {
 		t.Fatalf("unexpected tenants response: %#v", body.Tenants)
 	}
-	if !body.Tenants[0].AllowTerminal {
-		t.Fatalf("expected terminal permission to be exposed: %#v", body.Tenants[0])
-	}
 }
 
 func TestServerScopesTenantsByRole(t *testing.T) {
@@ -368,7 +346,6 @@ func TestServerScopesTenantsByRole(t *testing.T) {
 			TenantID:                  "team-a",
 			Role:                      "admin",
 			AllowedCredentialProfiles: []string{"*"},
-			AllowTerminal:             true,
 		},
 		"team-a-token": {
 			SubjectID:                 "tenant:team-a",
@@ -527,17 +504,6 @@ func TestServerCreatesUserAndTenantFolders(t *testing.T) {
 	}
 }
 
-func TestServerRejectsTerminalWithoutToken(t *testing.T) {
-	handler := newTestServer(t)
-
-	req := httptest.NewRequest(http.MethodGet, "/api/terminal?tenant=team-a&workspace=repo-main&credential_profile=team-default", nil)
-	res := httptest.NewRecorder()
-	handler.ServeHTTP(res, req)
-	if res.Code != http.StatusForbidden {
-		t.Fatalf("expected status 403, got %d: %s", res.Code, res.Body.String())
-	}
-}
-
 func TestServerRoutesAppServerWebSocket(t *testing.T) {
 	handler := api.NewServer(api.Options{
 		AppServer: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -556,43 +522,38 @@ func TestServerRoutesAppServerWebSocket(t *testing.T) {
 	}
 }
 
-func TestServerRunsTerminalWebSocket(t *testing.T) {
+func TestServerRunsBackgroundCLIAction(t *testing.T) {
 	handler := newTestServer(t)
-	server := httptest.NewServer(handler)
-	defer server.Close()
 
-	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/api/v1/terminal/ws?token=token-1&tenant=team-a&workspace=repo-main&credential_profile=team-default"
-	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
-	if err != nil {
-		t.Fatalf("dial terminal websocket: %v", err)
+	req := httptest.NewRequest(http.MethodPost, "/api/cli-actions", strings.NewReader(`{"tenant":"team-a","tool":"codex","action":"auth","workspace":"repo-main","credential_profile":"team-default"}`))
+	req.Header.Set("Authorization", "Bearer token-1")
+	res := httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+	if res.Code != http.StatusAccepted {
+		t.Fatalf("expected status 202, got %d: %s", res.Code, res.Body.String())
 	}
-	defer conn.Close()
-
-	if err := conn.WriteJSON(map[string]string{"type": "input", "data": "printf agent-runtime-ok\\n\r"}); err != nil {
-		t.Fatalf("write terminal command: %v", err)
+	var created actions.Action
+	if err := json.Unmarshal(res.Body.Bytes(), &created); err != nil {
+		t.Fatalf("decode action: %v", err)
 	}
-
-	deadline := time.Now().Add(2 * time.Second)
-	var output strings.Builder
-	for time.Now().Before(deadline) {
-		if err := conn.SetReadDeadline(time.Now().Add(500 * time.Millisecond)); err != nil {
-			t.Fatalf("set read deadline: %v", err)
-		}
-		var message struct {
-			Type string `json:"type"`
-			Data string `json:"data"`
-		}
-		if err := conn.ReadJSON(&message); err != nil {
-			continue
-		}
-		if message.Type == "output" {
-			output.WriteString(message.Data)
-		}
-		if strings.Contains(output.String(), "agent-runtime-ok") {
-			return
-		}
+	running := waitForCLIActionAuthURL(t, handler, created.ID)
+	if len(running.AuthURLs) != 1 || running.AuthURLs[0] != "https://auth.openai.com/activate" {
+		t.Fatalf("expected captured auth URL while running, got %#v", running.AuthURLs)
 	}
-	t.Fatalf("terminal output did not contain marker, got %q", output.String())
+	inputReq := httptest.NewRequest(http.MethodPost, "/api/cli-actions/"+created.ID+"/input", strings.NewReader(`{"data":"ABCD-EFGH"}`))
+	inputReq.Header.Set("Authorization", "Bearer token-1")
+	inputRes := httptest.NewRecorder()
+	handler.ServeHTTP(inputRes, inputReq)
+	if inputRes.Code != http.StatusAccepted {
+		t.Fatalf("expected input status 202, got %d: %s", inputRes.Code, inputRes.Body.String())
+	}
+	action := waitForCLIAction(t, handler, created.ID, actions.StatusSucceeded)
+	if len(action.AuthURLs) != 1 || action.AuthURLs[0] != "https://auth.openai.com/activate" {
+		t.Fatalf("expected captured auth URL, got %#v", action.AuthURLs)
+	}
+	if len(action.AuthCodes) != 1 || action.AuthCodes[0] != "ABCD-EFGH" {
+		t.Fatalf("expected captured auth code, got %#v", action.AuthCodes)
+	}
 }
 
 func TestServerRejectsJobWithoutBearerToken(t *testing.T) {
@@ -698,8 +659,13 @@ func TestServerStreamsJobEventsOverWebSocket(t *testing.T) {
 
 func newTestServer(t *testing.T) http.Handler {
 	t.Helper()
+	binDir := t.TempDir()
+	codexPath := filepath.Join(binDir, "codex")
+	if err := os.WriteFile(codexPath, []byte("#!/bin/sh\nif [ \"$1\" = \"login\" ]; then\n  echo 'Visit https://auth.openai.com/activate'\n  echo 'Enter code: ABCD-EFGH'\n  read value\n  echo \"received $value\"\n  exit 0\nfi\necho 'codex 1.0.0'\n"), 0o755); err != nil {
+		t.Fatalf("write fake codex: %v", err)
+	}
 	registry := tools.NewRegistry([]tools.Tool{
-		{Name: "codex", Path: "/usr/bin/codex", Version: "test", CredentialEnv: "CODEX_HOME", CredentialSubdir: ".codex"},
+		{Name: "codex", Path: codexPath, Version: "test", CredentialEnv: "CODEX_HOME", CredentialSubdir: ".codex"},
 	})
 	tenantStore, err := tenants.NewStoreWithUsers(map[string]policy.Policy{
 		"token-1": {
@@ -709,7 +675,6 @@ func newTestServer(t *testing.T) http.Handler {
 			AllowedTools:              []string{"codex"},
 			AllowedWorkspaces:         []string{"repo-*"},
 			AllowedCredentialProfiles: []string{"team-default"},
-			AllowTerminal:             true,
 			MaxJobDuration:            time.Minute,
 		},
 	}, []tenants.UserRequest{{Username: "admin", Password: "secret", Token: "token-1"}})
@@ -729,15 +694,14 @@ func newTestServer(t *testing.T) http.Handler {
 		ResolveCredentialProfile: resolveCredentialProfile,
 		Executor:                 immediateExecutor{},
 	})
-	terminalHandler := terminal.NewHandler(terminal.Options{
+	actionManager := actions.NewManager(actions.Options{
 		Policies:                 tenantStore,
 		Tools:                    registry,
 		ResolveWorkspace:         resolveWorkspace,
 		ResolveCredentialProfile: resolveCredentialProfile,
-		Shell:                    "/bin/sh",
 	})
 
-	return api.NewServer(api.Options{Jobs: manager, Tools: registry, Tenants: tenantStore, Terminal: terminalHandler})
+	return api.NewServer(api.Options{Jobs: manager, Actions: actionManager, Tools: registry, Tenants: tenantStore})
 }
 
 type immediateExecutor struct{}
@@ -768,4 +732,52 @@ func waitForHTTPJob(t *testing.T, handler http.Handler, id string, status jobs.S
 	}
 	t.Fatalf("job %s did not reach %s", id, status)
 	return jobs.Job{}
+}
+
+func waitForCLIAction(t *testing.T, handler http.Handler, id string, status actions.Status) actions.Action {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		req := httptest.NewRequest(http.MethodGet, "/api/cli-actions/"+id, nil)
+		req.Header.Set("Authorization", "Bearer token-1")
+		res := httptest.NewRecorder()
+		handler.ServeHTTP(res, req)
+		if res.Code != http.StatusOK {
+			t.Fatalf("expected status 200, got %d: %s", res.Code, res.Body.String())
+		}
+		var action actions.Action
+		if err := json.Unmarshal(res.Body.Bytes(), &action); err != nil {
+			t.Fatalf("decode action response: %v", err)
+		}
+		if action.Status == status {
+			return action
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("CLI action %s did not reach %s", id, status)
+	return actions.Action{}
+}
+
+func waitForCLIActionAuthURL(t *testing.T, handler http.Handler, id string) actions.Action {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		req := httptest.NewRequest(http.MethodGet, "/api/cli-actions/"+id, nil)
+		req.Header.Set("Authorization", "Bearer token-1")
+		res := httptest.NewRecorder()
+		handler.ServeHTTP(res, req)
+		if res.Code != http.StatusOK {
+			t.Fatalf("expected status 200, got %d: %s", res.Code, res.Body.String())
+		}
+		var action actions.Action
+		if err := json.Unmarshal(res.Body.Bytes(), &action); err != nil {
+			t.Fatalf("decode action response: %v", err)
+		}
+		if action.Status == actions.StatusRunning && len(action.AuthURLs) > 0 {
+			return action
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("CLI action %s did not capture auth URL", id)
+	return actions.Action{}
 }

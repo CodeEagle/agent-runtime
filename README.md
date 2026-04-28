@@ -2,7 +2,7 @@
 
 Agent Runtime is a portable, multi-tenant runtime for shared CLI agents such as Claude Code, Codex, Gemini CLI, and OpenCode.
 
-The goal is not to replace apps like cc-connect. The goal is to give many apps one shared place for CLI installation, login state, workspaces, job execution, and later interactive terminals. LazyCat should be a packaging target, not a core runtime assumption.
+The goal is not to replace apps like cc-connect. The goal is to give many apps one shared place for CLI installation, login state, workspaces, job execution, and API access. LazyCat should be a packaging target, not a core runtime assumption.
 
 ## Current Slice
 
@@ -15,18 +15,17 @@ This repo currently contains the first runtime slice:
 - Persistent tool registry with add/update/delete HTTP APIs.
 - Credential profile home resolver.
 - Workspace resolver with symlink escape protection.
-- PTY-backed WebSocket terminal API for integrations and hidden UI actions.
+- Background CLI action API for official-source install, auth, and verify actions. Auth output is scanned for URLs and one-time codes, and the UI can send a single auth code/token line back to the running process without exposing a shell.
 - WebSocket app-server proxy for tenant-isolated `codex app-server` sessions.
 - Tenant-aware file APIs for `tenants/<tenant>/workspaces` and `tenants/<tenant>/homes`, including bounded file preview.
 - CLI executable health probes based on the real runtime `PATH`; registered tools are not reported as available until the command is actually present.
 - Asynchronous job manager.
 - Local process executor.
 - Swagger UI at `/docs`, backed by `/openapi.json`.
-- HTTP API for health, readiness, status, registration, login, tools, users, tenants, tenant tokens, files, jobs, job events, app-server sessions, terminal sessions, and `/openapi.json`.
+- HTTP API for health, readiness, status, registration, login, tools, background CLI actions, users, tenants, tenant tokens, files, jobs, job events, app-server sessions, and `/openapi.json`.
 
 Not implemented yet:
 
-- Background CLI installer/updater jobs.
 - Persistent audit database.
 - CLI login-state health probes beyond executable/version detection.
 
@@ -44,6 +43,10 @@ GET  /api/session
 GET  /api/tools
 POST /api/tools
 DELETE /api/tools/{name}
+POST /api/cli-actions
+GET  /api/cli-actions/{id}
+POST /api/cli-actions/{id}/input
+DELETE /api/cli-actions/{id}
 GET  /api/tenants
 GET  /api/users
 POST /api/users
@@ -53,7 +56,6 @@ POST /api/tokens
 DELETE /api/tokens/{id}
 GET  /api/files?tenant=team-a&space=workspaces&path=/
 GET  /api/files/raw?tenant=team-a&space=workspaces&path=/repo-main/README.md
-WS   /api/terminal
 POST /api/jobs
 GET  /api/jobs/{id}
 GET  /api/jobs/{id}/events
@@ -71,6 +73,18 @@ Example job:
   "workspace": "repo-main",
   "credential_profile": "team-default",
   "timeout_seconds": 900
+}
+```
+
+Example CLI auth action:
+
+```json
+{
+  "tenant": "team-a",
+  "tool": "codex",
+  "action": "auth",
+  "workspace": "repo-main",
+  "credential_profile": "team-default"
 }
 ```
 
@@ -116,7 +130,7 @@ Each app-server WebSocket connection starts its own `codex app-server` process w
 
 `configs/local.json` registers the known CLI command names up front. They show as unavailable until the command is found in the runtime `PATH`. Install and authorize them from the Web UI's official-source cards, then use the job API against the shared tenant credential profile.
 
-Open the Web UI at `/`. The UI silently bootstraps the default `admin` / `admin` human session from the sample config, keeps terminal details hidden, and embeds the Swagger UI from `/docs` in the API view.
+Open the Web UI at `/`. The UI silently bootstraps the default `admin` / `admin` human session from the sample config, runs install/auth/verify actions in the background, and embeds the Swagger UI from `/docs` in the API view.
 
 `dev-token` remains an admin bearer token for service/API calls in the sample config. `team-a-token` remains a tenant bearer token that can only see and browse `team-a`; human Web UI login is handled through the `users` config.
 

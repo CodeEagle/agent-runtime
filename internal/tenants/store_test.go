@@ -18,7 +18,6 @@ func TestStoreListsTenantSummariesWithoutTokens(t *testing.T) {
 			AllowedTools:              []string{"codex"},
 			AllowedWorkspaces:         []string{"repo-*"},
 			AllowedCredentialProfiles: []string{"default"},
-			AllowTerminal:             true,
 			MaxJobDuration:            time.Minute,
 		},
 		"token-b": {
@@ -37,9 +36,6 @@ func TestStoreListsTenantSummariesWithoutTokens(t *testing.T) {
 	if got[0].ID != "team-a" {
 		t.Fatalf("unexpected tenant id: %#v", got[0])
 	}
-	if !got[0].AllowTerminal {
-		t.Fatalf("expected terminal to be allowed when any token permits it: %#v", got[0])
-	}
 	assertStrings(t, got[0].AllowedTools, []string{"claude", "codex"})
 	assertStrings(t, got[0].WorkspacePatterns, []string{"docs", "repo-*"})
 	assertStrings(t, got[0].CredentialProfiles, []string{"default", "ops"})
@@ -54,7 +50,6 @@ func TestStoreAuthenticatesUsers(t *testing.T) {
 			AllowedTools:              []string{"codex"},
 			AllowedWorkspaces:         []string{"repo-*"},
 			AllowedCredentialProfiles: []string{"default"},
-			AllowTerminal:             true,
 			MaxJobDuration:            time.Minute,
 		},
 	}, []tenants.UserRequest{
@@ -114,7 +109,6 @@ func TestStoreDeleteUserRemovesOwnedPolicy(t *testing.T) {
 			AllowedTools:              []string{"codex"},
 			AllowedWorkspaces:         []string{"repo-*"},
 			AllowedCredentialProfiles: []string{"team-default"},
-			AllowTerminal:             true,
 		},
 	})
 	if err != nil {
@@ -124,7 +118,7 @@ func TestStoreDeleteUserRemovesOwnedPolicy(t *testing.T) {
 	if len(users) != 1 {
 		t.Fatalf("expected one user, got %#v", users)
 	}
-	if got := store.List(); len(got) != 1 || got[0].ID != "team-b" || !got[0].AllowTerminal {
+	if got := store.List(); len(got) != 1 || got[0].ID != "team-b" {
 		t.Fatalf("expected team-b tenant before delete, got %#v", got)
 	}
 
@@ -142,10 +136,9 @@ func TestStoreDeleteUserRemovesOwnedPolicy(t *testing.T) {
 func TestStoreDeleteUserKeepsSharedPolicy(t *testing.T) {
 	store, err := tenants.NewStoreWithUsers(map[string]policy.Policy{
 		"shared-token": {
-			SubjectID:     "tenant-user:shared",
-			TenantID:      "team-shared",
-			Role:          "tenant",
-			AllowTerminal: true,
+			SubjectID: "tenant-user:shared",
+			TenantID:  "team-shared",
+			Role:      "tenant",
 		},
 	}, []tenants.UserRequest{
 		{Username: "one", Password: "secret", Token: "shared-token"},
@@ -177,8 +170,7 @@ func TestPersistentStorePrunesOrphanGeneratedUserPolicies(t *testing.T) {
       "tenant": "orphan",
       "role": "tenant",
       "allowed_workspaces": ["repo-*"],
-      "allowed_credential_profiles": ["team-default"],
-      "allow_terminal": true
+      "allowed_credential_profiles": ["team-default"]
     },
     {
       "token": "service-token",
@@ -186,8 +178,7 @@ func TestPersistentStorePrunesOrphanGeneratedUserPolicies(t *testing.T) {
       "tenant": "service-tenant",
       "role": "tenant",
       "allowed_workspaces": ["repo-*"],
-      "allowed_credential_profiles": ["team-default"],
-      "allow_terminal": true
+      "allowed_credential_profiles": ["team-default"]
     }
   ],
   "users": []

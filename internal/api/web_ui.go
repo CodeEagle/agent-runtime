@@ -242,6 +242,9 @@ const webUIHTML = `<!doctype html>
     }
     .activity-links { display: grid; gap: 8px; }
     .activity-links a { display: block; padding: 8px 10px; border: 1px solid rgba(37, 215, 207, 0.3); border-radius: 8px; background: rgba(37, 215, 207, 0.08); overflow-wrap: anywhere; }
+    .action-input { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+    .action-input[hidden] { display: none; }
+    .action-input button { padding: 0 12px; }
     .swagger-panel { min-height: calc(100vh - 262px); }
     .swagger-frame {
       width: 100%;
@@ -360,6 +363,10 @@ const webUIHTML = `<!doctype html>
             <div class="activity-body">
               <div class="badge warn"><span class="led" id="action-led"></span><span id="action-state" data-i18n="idle">空闲</span></div>
               <div class="activity-links" id="activity-links"></div>
+              <div class="action-input" id="action-input-box" hidden>
+                <input id="action-input" autocomplete="one-time-code" data-i18n-placeholder="actionInputPlaceholder" placeholder="输入授权码或令牌">
+                <button class="primary" id="send-action-input" type="button" data-i18n="send">发送</button>
+              </div>
               <pre class="activity-log" id="activity-log"></pre>
             </div>
           </aside>
@@ -414,10 +421,10 @@ const webUIHTML = `<!doctype html>
         activity: '操作状态',
         activityDesc: '安装和授权输出会整理在这里。',
         stop: '停止',
+        send: '发送',
+        actionInputPlaceholder: '输入授权码或令牌',
         idle: '空闲',
         running: '运行中',
-        disconnected: '未连接',
-        connected: '已连接',
         loginOK: '会话已就绪',
         loginFailed: '默认会话不可用',
         refreshed: '状态已刷新',
@@ -431,11 +438,11 @@ const webUIHTML = `<!doctype html>
         registerDesc: '开放注册租户用户，返回调用自己租户资源的 Bearer Token。',
         toolsDesc: '列出已注册 CLI，并可按租户和凭据配置探测真实 PATH 状态。',
         toolUpdateDesc: '管理员注册或更新 CLI wrapper。普通安装建议使用首页 CLI Manager。',
+        cliActionsDesc: '启动后台安装、授权或验证动作；授权输出会提取 URL 和一次性 code。',
         jobsDesc: '服务间调用入口。调用方只能使用 token 策略允许的 tool、workspace 和 credential profile。',
         eventsDesc: '读取 job 事件流。返回 Server-Sent Events，适合 curl 和服务端消费。',
         eventsWSDesc: '实时 WebSocket job 事件流，stdout、stderr、status、exit 会逐条推送。',
-        appServerDesc: '为外部客户端启动 tenant 隔离的 codex app-server，并透明转发 WebSocket 消息。',
-        terminalApiDesc: '交互式 PTY API 仍保留给集成方；首页不会显示终端。'
+        appServerDesc: '为外部客户端启动 tenant 隔离的 codex app-server，并透明转发 WebSocket 消息。'
       },
       en: {
         brandSubtitle: 'CLI control plane',
@@ -460,10 +467,10 @@ const webUIHTML = `<!doctype html>
         activity: 'Activity',
         activityDesc: 'Install and authorization output is summarized here.',
         stop: 'Stop',
+        send: 'Send',
+        actionInputPlaceholder: 'Enter auth code or token',
         idle: 'Idle',
         running: 'Running',
-        disconnected: 'Disconnected',
-        connected: 'Connected',
         loginOK: 'Session ready',
         loginFailed: 'Default session unavailable',
         refreshed: 'Runtime status refreshed',
@@ -477,11 +484,11 @@ const webUIHTML = `<!doctype html>
         registerDesc: 'Register a tenant user and receive a Bearer token for that user’s own tenant resources.',
         toolsDesc: 'List registered CLIs and probe tenant/profile-specific PATH health.',
         toolUpdateDesc: 'Admins can register or update CLI wrappers. Normal installs should use the home CLI Manager.',
+        cliActionsDesc: 'Start background install, authorization, or verification actions; auth output extracts URLs and one-time codes.',
         jobsDesc: 'Service-to-service execution entrypoint constrained by token policy.',
         eventsDesc: 'Read job event output as Server-Sent Events for curl and backend clients.',
         eventsWSDesc: 'Real-time WebSocket job event stream for stdout, stderr, status, and exit events.',
-        appServerDesc: 'Start a tenant-isolated codex app-server for external clients and transparently proxy WebSocket messages.',
-        terminalApiDesc: 'Interactive PTY API remains available for integrations; the home screen does not show a terminal.'
+        appServerDesc: 'Start a tenant-isolated codex app-server for external clients and transparently proxy WebSocket messages.'
       }
     };
 
@@ -496,22 +503,24 @@ const webUIHTML = `<!doctype html>
       toolsContextReady: false,
       tenants: [],
       users: [],
-      ws: null,
-      connected: false,
       actionBusy: false,
+      activeActionID: '',
+      activeActionKind: '',
+      actionEventCount: 0,
       activityText: '',
+      actionPollTimer: null,
       installPollTimer: null,
       cliRenderSignature: ''
     };
 
     const installSources = [
-      { label: 'Claude Code', fallback: 'CC', logo: '/assets/logos/claude.svg', tool: 'claude', command: 'curl -fsSL https://claude.ai/install.sh | bash', verify: 'claude --version', login: 'claude', docs: 'https://docs.anthropic.com/en/docs/claude-code/quickstart', provider: 'Anthropic' },
-      { label: 'Codex', fallback: 'CX', logo: 'https://avatars.githubusercontent.com/u/14957082?s=96&v=4', tool: 'codex', command: 'npm install -g @openai/codex', verify: 'codex --version', login: 'codex login', docs: 'https://github.com/openai/codex', provider: 'OpenAI' },
-      { label: 'Gemini', fallback: 'GM', logo: 'https://avatars.githubusercontent.com/u/161781182?s=96&v=4', tool: 'gemini', command: 'npm install -g @google/gemini-cli', verify: 'gemini --version', login: 'gemini', docs: 'https://github.com/google-gemini/gemini-cli', provider: 'Google' },
-      { label: 'OpenCode', fallback: 'OC', logo: 'https://opencode.ai/favicon-96x96-v3.png', tool: 'opencode', command: 'curl -fsSL https://opencode.ai/install | bash', verify: 'opencode --version', login: 'opencode auth login', docs: 'https://opencode.ai/download', provider: 'SST' },
-      { label: 'iFlow', fallback: 'IF', logo: 'https://img.alicdn.com/imgextra/i1/O1CN01jgdyc81WIsdSepA4X_!!6000000002766-55-tps-162-162.svg', tool: 'iflow', command: 'bash -c "$(curl -fsSL https://gitee.com/iflow-ai/iflow-cli/raw/main/install.sh)"', verify: 'iflow --version', login: 'iflow', docs: 'https://platform.iflow.cn/cli/quickstart', provider: 'iFlow' },
-      { label: 'Kimi', fallback: 'KM', logo: 'https://www.kimi.com/favicon.ico', tool: 'kimi', command: 'curl -LsSf https://code.kimi.com/install.sh | bash', verify: 'kimi --version', login: 'kimi', docs: 'https://www.kimi.com/code/docs/en/kimi-code-cli/getting-started.html', provider: 'Moonshot AI' },
-      { label: 'Qoder', fallback: 'QD', logo: '/assets/logos/qoder.svg', tool: 'qoder', command: 'curl -fsSL https://qoder.com/install | bash', verify: 'qodercli --version', login: 'qodercli', docs: 'https://docs.qoder.com/cli/quick-start', provider: 'Qoder' }
+      { label: 'Claude Code', fallback: 'CC', logo: '/assets/logos/claude.svg', tool: 'claude', docs: 'https://docs.anthropic.com/en/docs/claude-code/quickstart', provider: 'Anthropic' },
+      { label: 'Codex', fallback: 'CX', logo: 'https://avatars.githubusercontent.com/u/14957082?s=96&v=4', tool: 'codex', docs: 'https://github.com/openai/codex', provider: 'OpenAI' },
+      { label: 'Gemini', fallback: 'GM', logo: 'https://avatars.githubusercontent.com/u/161781182?s=96&v=4', tool: 'gemini', docs: 'https://github.com/google-gemini/gemini-cli', provider: 'Google' },
+      { label: 'OpenCode', fallback: 'OC', logo: 'https://opencode.ai/favicon-96x96-v3.png', tool: 'opencode', docs: 'https://opencode.ai/download', provider: 'SST' },
+      { label: 'iFlow', fallback: 'IF', logo: 'https://img.alicdn.com/imgextra/i1/O1CN01jgdyc81WIsdSepA4X_!!6000000002766-55-tps-162-162.svg', tool: 'iflow', docs: 'https://platform.iflow.cn/cli/quickstart', provider: 'iFlow' },
+      { label: 'Kimi', fallback: 'KM', logo: 'https://www.kimi.com/favicon.ico', tool: 'kimi', docs: 'https://www.kimi.com/code/docs/en/kimi-code-cli/getting-started.html', provider: 'Moonshot AI' },
+      { label: 'Qoder', fallback: 'QD', logo: '/assets/logos/qoder.svg', tool: 'qoder', docs: 'https://docs.qoder.com/cli/quick-start', provider: 'Qoder' }
     ];
 
     function $(id) { return document.getElementById(id); }
@@ -550,6 +559,7 @@ const webUIHTML = `<!doctype html>
     function applyLanguage() {
       document.documentElement.lang = state.lang === 'zh' ? 'zh-CN' : 'en';
       document.querySelectorAll('[data-i18n]').forEach(function(el) { el.textContent = t(el.dataset.i18n); });
+      document.querySelectorAll('[data-i18n-placeholder]').forEach(function(el) { el.placeholder = t(el.dataset.i18nPlaceholder); });
       $('lang-zh').classList.toggle('active', state.lang === 'zh');
       $('lang-en').classList.toggle('active', state.lang === 'en');
       updatePageTitle();
@@ -672,7 +682,7 @@ const webUIHTML = `<!doctype html>
       $('session-led').classList.toggle('bad', !loggedIn);
       $('session-badge').classList.toggle('ok', loggedIn);
       $('session-badge').classList.toggle('bad', !loggedIn);
-      $('session-label').textContent = loggedIn ? state.session.subject : t('disconnected');
+      $('session-label').textContent = loggedIn ? state.session.subject : t('idle');
     }
 
     function renderContextOptions() {
@@ -703,84 +713,109 @@ const webUIHTML = `<!doctype html>
       $('context-label').textContent = ($('tenant').value || '-') + ' / ' + ($('workspace').value || '-') + ' / ' + ($('profile').value || '-');
     }
 
-    function terminalURL() {
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const params = new URLSearchParams({
-        token: state.sessionToken,
-        tenant: $('tenant').value,
-        workspace: $('workspace').value.trim(),
-        credential_profile: $('profile').value.trim(),
-        cols: '120',
-        rows: '32'
-      });
-      return protocol + '//' + window.location.host + '/api/v1/terminal/ws?' + params.toString();
-    }
-
-    function connectActionSocket() {
-      if (state.ws && state.ws.readyState === WebSocket.OPEN) return Promise.resolve(state.ws);
-      return new Promise(function(resolve, reject) {
-        if (!state.session) {
-          reject(new Error(t('loginFailed')));
-          return;
-        }
-        const ws = new WebSocket(terminalURL());
-        state.ws = ws;
-        const timer = window.setTimeout(function() { reject(new Error('connection timeout')); }, 8000);
-        ws.onopen = function() {
-          window.clearTimeout(timer);
-          state.connected = true;
-          renderActionState();
-          resolve(ws);
-        };
-        ws.onmessage = function(event) {
-          try {
-            const payload = JSON.parse(event.data);
-            if (payload.type === 'output') appendActivity(payload.data || '');
-            if (payload.type === 'error') appendActivity('\n[error] ' + (payload.data || 'unknown error') + '\n');
-            if (payload.type === 'exit') {
-              state.connected = false;
-              state.actionBusy = false;
-              renderActionState();
-            }
-          } catch (err) {
-            appendActivity(String(event.data));
-          }
-        };
-        ws.onclose = function() {
-          state.connected = false;
-          state.actionBusy = false;
-          renderActionState();
-        };
-        ws.onerror = function() {
-          state.connected = false;
-          state.actionBusy = false;
-          renderActionState();
-        };
-      });
-    }
-
-    function disconnectActionSocket() {
-      if (state.ws) state.ws.close();
-      state.ws = null;
-      state.connected = false;
-      state.actionBusy = false;
-      renderActionState();
-    }
-
-    async function runCommand(command, title) {
+    async function startCliAction(tool, action, title) {
       if (!state.session) {
         showToast(t('loginFailed'));
         return;
       }
-      $('action-title').textContent = title;
-      appendActivity('\n$ ' + command + '\n');
+      if (!state.toolsContextReady) {
+        showToast(t('checking'));
+        return;
+      }
+      stopActionPolling();
+      state.activityText = '';
       state.actionBusy = true;
+      state.activeActionID = '';
+      state.activeActionKind = action;
+      state.actionEventCount = 0;
+      $('activity-log').textContent = '';
+      $('activity-links').innerHTML = '';
+      $('action-title').textContent = title;
       renderActionState();
-      const ws = await connectActionSocket();
-      window.setTimeout(function() {
-        ws.send(JSON.stringify({ type: 'input', data: command + '\r' }));
-      }, 180);
+      const body = await api('/api/cli-actions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tool: tool,
+          action: action,
+          tenant: $('tenant').value,
+          workspace: $('workspace').value.trim(),
+          credential_profile: $('profile').value.trim()
+        })
+      });
+      state.activeActionID = body.id;
+      appendActivity('$ ' + (body.command || (tool + ' ' + action)) + '\n');
       showToast(t('commandStarted') + ': ' + title);
+      await pollCliAction(true);
+      state.actionPollTimer = window.setInterval(function() { pollCliAction(false).catch(function(err) { showToast(err.message); }); }, 1400);
+    }
+
+    function stopActionPolling() {
+      if (state.actionPollTimer) window.clearInterval(state.actionPollTimer);
+      state.actionPollTimer = null;
+    }
+
+    async function pollCliAction(runOnce) {
+      if (!state.activeActionID) return;
+      const action = await api('/api/cli-actions/' + encodeURIComponent(state.activeActionID));
+      const events = action.events || [];
+      events.slice(state.actionEventCount).forEach(function(event) {
+        if (event.type === 'status') appendActivity('[status] ' + event.message + '\n');
+        if (event.type === 'stdout' || event.type === 'stderr') appendActivity(event.message || '');
+        if (event.type === 'input') appendActivity('[input] ' + event.message);
+        if (event.type === 'exit') appendActivity('[exit] ' + event.message + '\n');
+      });
+      state.actionEventCount = events.length;
+      renderAuthHints(action);
+      const done = ['succeeded', 'failed', 'timed_out', 'canceled'].indexOf(action.status) >= 0;
+      state.actionBusy = !done;
+      renderActionState();
+      if (done && !runOnce) stopActionPolling();
+      if (done && (action.action === 'install' || action.action === 'verify')) {
+        await refreshTools().then(renderCliManager).catch(function() {});
+      }
+    }
+
+    function renderAuthHints(action) {
+      const urls = action.auth_urls || [];
+      const codes = action.auth_codes || [];
+      const html = []
+        .concat(urls.slice(-5).map(function(url) {
+          return '<a href="' + escapeHTML(url) + '" target="_blank" rel="noopener noreferrer">' + escapeHTML(url) + '</a>';
+        }))
+        .concat(codes.slice(-5).map(function(code) {
+          return '<button class="ghost" type="button" data-copy-code="' + escapeHTML(code) + '">' + escapeHTML(code) + '</button>';
+        }))
+        .join('');
+      if (html) $('activity-links').innerHTML = html;
+      $('activity-links').querySelectorAll('[data-copy-code]').forEach(function(button) {
+        button.addEventListener('click', function() {
+          navigator.clipboard.writeText(button.dataset.copyCode || '').then(function() { showToast(t('copied')); }).catch(function() {});
+        });
+      });
+    }
+
+    async function sendActionInput() {
+      const input = $('action-input');
+      const data = input.value.trim();
+      if (!data || !state.activeActionID) return;
+      await api('/api/cli-actions/' + encodeURIComponent(state.activeActionID) + '/input', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data: data })
+      });
+      input.value = '';
+      showToast(t('commandStarted'));
+      await pollCliAction(true);
+    }
+
+    async function cancelCliAction() {
+      if (state.activeActionID && state.actionBusy) {
+        await api('/api/cli-actions/' + encodeURIComponent(state.activeActionID), { method: 'DELETE' });
+      }
+      stopActionPolling();
+      state.actionBusy = false;
+      renderActionState();
     }
 
     function cleanOutput(value) {
@@ -800,16 +835,17 @@ const webUIHTML = `<!doctype html>
       const urls = Array.from(new Set((state.activityText.match(/https?:\/\/[^\s"'<>]+/g) || []).map(function(url) {
         return url.replace(/[),.]+$/, '');
       }))).slice(-5);
-      $('activity-links').innerHTML = urls.map(function(url) {
+      if (!$('activity-links').innerHTML) $('activity-links').innerHTML = urls.map(function(url) {
         return '<a href="' + escapeHTML(url) + '" target="_blank" rel="noopener noreferrer">' + escapeHTML(url) + '</a>';
       }).join('');
     }
 
     function renderActionState() {
-      const key = state.actionBusy ? 'running' : (state.connected ? 'connected' : 'idle');
+      const key = state.actionBusy ? 'running' : 'idle';
       $('action-state').textContent = t(key);
-      $('action-led').classList.toggle('ok', state.connected || state.actionBusy);
+      $('action-led').classList.toggle('ok', state.actionBusy);
       $('action-led').classList.toggle('bad', false);
+      $('action-input-box').hidden = !(state.actionBusy && state.activeActionKind === 'auth');
     }
 
     function startInstallPolling() {
@@ -842,11 +878,11 @@ const webUIHTML = `<!doctype html>
         const healthText = available ? t('healthOK') : (canCheck ? t('notInstalled') : t('checking'));
         const disabled = canCheck ? '' : ' disabled';
         const actions = available
-          ? '<button class="ghost" type="button" data-login-command="' + escapeHTML(source.login) + '"' + disabled + '>' + escapeHTML(t('authorize')) + '</button>' +
-            '<button class="ghost" type="button" data-install-command="' + escapeHTML(source.verify) + '"' + disabled + '>' + escapeHTML(t('verify')) + '</button>' +
+          ? '<button class="ghost" type="button" data-cli-action="auth" data-cli-tool="' + escapeHTML(source.tool) + '"' + disabled + '>' + escapeHTML(t('authorize')) + '</button>' +
+            '<button class="ghost" type="button" data-cli-action="verify" data-cli-tool="' + escapeHTML(source.tool) + '"' + disabled + '>' + escapeHTML(t('verify')) + '</button>' +
             (state.session && state.session.admin && known.has(source.tool) ? '<button class="danger" type="button" data-delete-tool="' + escapeHTML(source.tool) + '">' + escapeHTML(t('remove')) + '</button>' : '')
-          : '<button class="primary" type="button" data-install-command="' + escapeHTML(source.command) + '"' + disabled + '>' + escapeHTML(t('installCli')) + '</button>' +
-            '<button class="ghost" type="button" data-login-command="' + escapeHTML(source.login) + '"' + disabled + '>' + escapeHTML(t('authorize')) + '</button>' +
+          : '<button class="primary" type="button" data-cli-action="install" data-cli-tool="' + escapeHTML(source.tool) + '"' + disabled + '>' + escapeHTML(t('installCli')) + '</button>' +
+            '<button class="ghost" type="button" data-cli-action="auth" data-cli-tool="' + escapeHTML(source.tool) + '"' + disabled + '>' + escapeHTML(t('authorize')) + '</button>' +
             '<a href="' + escapeHTML(source.docs) + '" target="_blank" rel="noopener noreferrer">' + escapeHTML(t('officialSource')) + '</a>';
         return '<article class="cli-card">' +
           renderCliLogo(source) +
@@ -867,14 +903,13 @@ const webUIHTML = `<!doctype html>
     }
 
     function bindManagerButtons(root) {
-      root.querySelectorAll('[data-install-command]').forEach(function(button) {
+      root.querySelectorAll('[data-cli-action]').forEach(function(button) {
         button.addEventListener('click', function() {
-          runCommand(button.dataset.installCommand, button.textContent.trim()).then(startInstallPolling).catch(function(err) { showToast(err.message); });
-        });
-      });
-      root.querySelectorAll('[data-login-command]').forEach(function(button) {
-        button.addEventListener('click', function() {
-          runCommand(button.dataset.loginCommand, button.textContent.trim()).catch(function(err) { showToast(err.message); });
+          const action = button.dataset.cliAction;
+          const tool = button.dataset.cliTool;
+          startCliAction(tool, action, button.textContent.trim()).then(function() {
+            if (action === 'install') startInstallPolling();
+          }).catch(function(err) { showToast(err.message); });
         });
       });
       root.querySelectorAll('[data-delete-tool]').forEach(function(button) {
@@ -906,7 +941,14 @@ const webUIHTML = `<!doctype html>
     $('tenant').addEventListener('change', function() { updateProfileOptions(); refreshTools().then(renderCliManager).catch(function() {}); });
     $('workspace').addEventListener('input', updateContextLabels);
     $('profile').addEventListener('input', function() { updateContextLabels(); refreshTools().then(renderCliManager).catch(function() {}); });
-    $('stop-action').addEventListener('click', function() { disconnectActionSocket(); showToast(t('commandStopped')); });
+    $('stop-action').addEventListener('click', function() { cancelCliAction().then(function() { showToast(t('commandStopped')); }).catch(function(err) { showToast(err.message); }); });
+    $('send-action-input').addEventListener('click', function() { sendActionInput().catch(function(err) { showToast(err.message); }); });
+    $('action-input').addEventListener('keydown', function(event) {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        sendActionInput().catch(function(err) { showToast(err.message); });
+      }
+    });
 
     applyLanguage();
     renderActionState();

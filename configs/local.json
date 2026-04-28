@@ -72,7 +72,6 @@
       "allowed_tools": ["codex", "claude", "gemini", "opencode", "iflow", "kimi", "qoder"],
       "allowed_workspaces": ["repo-*"],
       "allowed_credential_profiles": ["team-default"],
-      "allow_terminal": true,
       "max_job_seconds": 900
     },
     {
@@ -83,7 +82,6 @@
       "allowed_tools": ["codex", "claude", "gemini", "opencode", "iflow", "kimi", "qoder"],
       "allowed_workspaces": ["repo-*"],
       "allowed_credential_profiles": ["team-default"],
-      "allow_terminal": true,
       "max_job_seconds": 900
     }
   ]

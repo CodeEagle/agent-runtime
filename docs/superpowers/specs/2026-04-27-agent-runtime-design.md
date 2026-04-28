@@ -9,14 +9,14 @@ Build a portable, multi-tenant CLI agent runtime that can run as a normal develo
 The first slice provides a working backend foundation:
 
 - JSON configuration with portable storage roots.
-- Tenant-aware policy checks for tools, workspaces, credential profiles, terminal access, and job duration.
+- Tenant-aware policy checks for tools, workspaces, credential profiles, and job duration.
 - Workspace path resolution that rejects symlink and relative-path escape attempts.
 - Shared tool registry with per-job policy enforcement.
 - Credential profile home resolution.
 - Asynchronous job manager backed by a local process executor.
-- HTTP API for health, status, tool listing, job creation, job lookup, and job event streaming.
+- HTTP API for health, status, tool listing, background CLI actions, job creation, job lookup, and job event streaming.
 
-The first slice intentionally does not implement the full xterm.js web terminal or CLI installer. Those depend on the stable execution, tenant, and credential boundaries built here.
+The runtime intentionally avoids exposing a raw shell API. CLI installation and authorization run as controlled background actions.
 
 ## Architecture
 
@@ -60,16 +60,16 @@ GET  /api/health
 GET  /api/ready
 GET  /api/status
 GET  /api/tools
+POST /api/cli-actions
+GET  /api/cli-actions/{id}
+POST /api/cli-actions/{id}/input
+DELETE /api/cli-actions/{id}
 POST /api/jobs
 GET  /api/jobs/{id}
 GET  /api/jobs/{id}/events
 ```
 
-The event endpoint uses server-sent events in the first slice because it is standard-library friendly and adequate for non-interactive jobs. Interactive terminal support should use WebSocket in the next slice:
-
-```text
-WS /api/terminal?tenant=<id>&workspace=<id>&credential_profile=<id>
-```
+The event endpoint uses server-sent events in the first slice because it is standard-library friendly and adequate for non-interactive jobs. Real-time job events can also be exposed over WebSocket without exposing a raw shell.
 
 ## Job Request Shape
 
@@ -93,7 +93,7 @@ Callers should use workspace IDs and credential profile IDs instead of raw paths
 
 - Service calls never receive a raw shell API.
 - Each request is authenticated by bearer token.
-- Tokens map to policies; policies decide tools, workspaces, profiles, terminal access, and max duration.
+- Tokens map to policies; policies decide tools, workspaces, profiles, and max duration.
 - Workspace paths are resolved through `filepath.Clean`, absolute roots, and symlink evaluation.
 - Audit records store caller ID, tenant, tool, args, workspace, profile, duration, exit code, and event summary, but not bearer tokens or secret environment values.
 
@@ -101,8 +101,7 @@ Callers should use workspace IDs and credential profile IDs instead of raw paths
 
 Tests lock the critical boundaries first:
 
-- Policy allows valid requests and rejects tenant/tool/workspace/profile/terminal/duration violations.
+- Policy allows valid requests and rejects tenant/tool/workspace/profile/duration violations.
 - Workspace resolution rejects symlink escape attempts.
-- Job manager enforces policy before execution and records terminal job state.
+- Job manager enforces policy before execution and records job state.
 - API rejects missing credentials and accepts authorized job creation.
-

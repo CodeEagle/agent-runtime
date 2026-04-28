@@ -38,7 +38,6 @@ type TokenConfig struct {
 	AllowedTools              []string      `json:"allowed_tools"`
 	AllowedWorkspaces         []string      `json:"allowed_workspaces"`
 	AllowedCredentialProfiles []string      `json:"allowed_credential_profiles"`
-	AllowTerminal             bool          `json:"allow_terminal"`
 	MaxJobSeconds             int           `json:"max_job_seconds"`
 	Policy                    policy.Policy `json:"-"`
 }
@@ -53,7 +52,6 @@ type UserConfig struct {
 	AllowedTools              []string `json:"allowed_tools"`
 	AllowedWorkspaces         []string `json:"allowed_workspaces"`
 	AllowedCredentialProfiles []string `json:"allowed_credential_profiles"`
-	AllowTerminal             bool     `json:"allow_terminal"`
 	MaxJobSeconds             int      `json:"max_job_seconds"`
 }
 
@@ -116,7 +114,6 @@ func Load(path string) (Config, error) {
 			AllowedTools:              append([]string(nil), token.AllowedTools...),
 			AllowedWorkspaces:         append([]string(nil), token.AllowedWorkspaces...),
 			AllowedCredentialProfiles: append([]string(nil), token.AllowedCredentialProfiles...),
-			AllowTerminal:             token.AllowTerminal,
 			MaxJobDuration:            duration,
 		}
 	}
@@ -145,7 +142,6 @@ func (cfg Config) UserStore() []tenants.UserRequest {
 			AllowedTools:              append([]string(nil), user.AllowedTools...),
 			AllowedWorkspaces:         append([]string(nil), user.AllowedWorkspaces...),
 			AllowedCredentialProfiles: append([]string(nil), user.AllowedCredentialProfiles...),
-			AllowTerminal:             user.AllowTerminal,
 			MaxJobSeconds:             user.MaxJobSeconds,
 		})
 	}

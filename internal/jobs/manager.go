@@ -100,7 +100,6 @@ type CreateRequest struct {
 	Env               map[string]string `json:"env"`
 	Timeout           time.Duration     `json:"-"`
 	TimeoutSeconds    int               `json:"timeout_seconds,omitempty"`
-	WantsTerminal     bool              `json:"terminal,omitempty"`
 }
 
 type Job struct {
@@ -168,7 +167,6 @@ func (m *Manager) Create(ctx context.Context, req CreateRequest) (Job, error) {
 		WorkspaceID:       req.WorkspaceID,
 		CredentialProfile: req.CredentialProfile,
 		RequestedDuration: req.Timeout,
-		WantsTerminal:     req.WantsTerminal,
 	}); err != nil {
 		return Job{}, err
 	}

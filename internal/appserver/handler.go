@@ -138,7 +138,6 @@ func (h *Handler) authorize(r *http.Request) (sessionSpec, error) {
 		WorkspaceID:       workspaceID,
 		CredentialProfile: profileID,
 		RequestedDuration: p.MaxJobDuration,
-		WantsTerminal:     true,
 	}); err != nil {
 		return sessionSpec{}, err
 	}
