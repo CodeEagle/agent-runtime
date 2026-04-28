@@ -652,7 +652,7 @@ const webUIHTML = `<!doctype html>
     usernameInput.value = localStorage.getItem('agent-runtime-username') || 'admin';
 
     const installSources = [
-      { label: 'Claude Code', fallback: 'CC', logo: 'https://claude.ai/favicon.svg', tool: 'claude', command: 'curl -fsSL https://claude.ai/install.sh | bash', verify: 'claude --version', login: 'claude', docs: 'https://docs.anthropic.com/en/docs/claude-code/quickstart', provider: 'Anthropic' },
+      { label: 'Claude Code', fallback: 'CC', logo: '/assets/logos/claude.svg', tool: 'claude', command: 'curl -fsSL https://claude.ai/install.sh | bash', verify: 'claude --version', login: 'claude', docs: 'https://docs.anthropic.com/en/docs/claude-code/quickstart', provider: 'Anthropic' },
       { label: 'Codex', fallback: 'CX', logo: 'https://avatars.githubusercontent.com/u/14957082?s=96&v=4', tool: 'codex', command: 'npm install -g @openai/codex', verify: 'codex --version', login: 'codex login', docs: 'https://github.com/openai/codex', provider: 'OpenAI' },
       { label: 'Gemini', fallback: 'GM', logo: 'https://avatars.githubusercontent.com/u/161781182?s=96&v=4', tool: 'gemini', command: 'npm install -g @google/gemini-cli', verify: 'gemini --version', login: 'gemini', docs: 'https://github.com/google-gemini/gemini-cli', provider: 'Google' },
       { label: 'OpenCode', fallback: 'OC', logo: 'https://opencode.ai/favicon-96x96-v3.png', tool: 'opencode', command: 'curl -fsSL https://opencode.ai/install | bash', verify: 'opencode --version', login: 'opencode auth login', docs: 'https://opencode.ai/download', provider: 'SST' },

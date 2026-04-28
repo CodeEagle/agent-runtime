@@ -103,7 +103,7 @@ func TestServerServesWebUIAtRoot(t *testing.T) {
 		}
 	}
 	for _, marker := range []string{
-		"https://claude.ai/favicon.svg",
+		"/assets/logos/claude.svg",
 		"https://avatars.githubusercontent.com/u/14957082",
 		"https://avatars.githubusercontent.com/u/161781182",
 		"https://opencode.ai/favicon-96x96-v3.png",
@@ -114,6 +114,21 @@ func TestServerServesWebUIAtRoot(t *testing.T) {
 		if !strings.Contains(body, marker) {
 			t.Fatalf("expected UI to include official CLI logo or source %q", marker)
 		}
+	}
+}
+
+func TestServerServesVendoredLogoAsset(t *testing.T) {
+	handler := newTestServer(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/assets/logos/claude.svg", nil)
+	res := httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", res.Code, res.Body.String())
+	}
+	if got := res.Header().Get("Content-Type"); !strings.Contains(got, "image/svg+xml") {
+		t.Fatalf("expected SVG content type, got %q", got)
 	}
 }
 
