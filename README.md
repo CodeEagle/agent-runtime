@@ -8,19 +8,19 @@ The goal is not to replace apps like cc-connect. The goal is to give many apps o
 
 This repo currently contains the first runtime slice:
 
-- Built-in Web UI at `/` for username/password login, terminal sessions, inline CLI management, user and tenant management, and file exploration.
+- Built-in Web UI at `/` for a dark single-page CLI control plane with silent user session bootstrap, UI-only CLI install/auth actions, runtime user count, and an API reference view.
 - Official-source CLI install cards for Claude Code, Codex, Gemini CLI, OpenCode, iFlow, Kimi, and Qoder.
 - JSON config loader.
 - Tenant-scoped user and token policies with `admin` and `tenant` roles.
 - Persistent tool registry with add/update/delete HTTP APIs.
 - Credential profile home resolver.
 - Workspace resolver with symlink escape protection.
-- PTY-backed WebSocket terminal for human login flows.
-- Tenant-aware split-pane file explorer for `tenants/<tenant>/workspaces` and `tenants/<tenant>/homes`, including bounded file preview.
+- PTY-backed WebSocket terminal API for integrations and hidden UI actions.
+- Tenant-aware file APIs for `tenants/<tenant>/workspaces` and `tenants/<tenant>/homes`, including bounded file preview.
 - CLI executable health probes based on the real runtime `PATH`; registered tools are not reported as available until the command is actually present.
 - Asynchronous job manager.
 - Local process executor.
-- HTTP API for health, readiness, status, login, tools, users, tenants, tenant tokens, files, jobs, job events, and terminal sessions.
+- HTTP API for health, readiness, status, login, tools, users, tenants, tenant tokens, files, jobs, job events, terminal sessions, and `/openapi.json`.
 
 Not implemented yet:
 
@@ -34,6 +34,7 @@ Not implemented yet:
 GET  /api/health
 GET  /api/ready
 GET  /api/status
+GET  /openapi.json
 POST /api/login
 GET  /api/session
 GET  /api/tools
@@ -93,9 +94,9 @@ curl -sS \
   http://127.0.0.1:8080/api/jobs
 ```
 
-`configs/local.json` registers the known CLI command names up front. They show as unavailable until the command is found in the runtime `PATH`. Install them from the Web UI's official-source cards, then use the terminal or job API against the shared tenant credential profile.
+`configs/local.json` registers the known CLI command names up front. They show as unavailable until the command is found in the runtime `PATH`. Install and authorize them from the Web UI's official-source cards, then use the job API against the shared tenant credential profile.
 
-Open the Web UI at `/`, log in as `admin` / `admin` or `team-a` / `team-a`, connect the terminal with tenant `team-a`, workspace `repo-main`, and credential profile `team-default`, then use the login shortcut buttons for CLI auth flows.
+Open the Web UI at `/`. The UI silently bootstraps the default `admin` / `admin` human session from the sample config, keeps terminal details hidden, and exposes a one-click API reference view similar to Swagger docs.
 
 `dev-token` remains an admin bearer token for service/API calls in the sample config. `team-a-token` remains a tenant bearer token that can only see and browse `team-a`; human Web UI login is handled through the `users` config.
 

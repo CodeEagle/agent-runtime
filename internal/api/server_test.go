@@ -68,26 +68,38 @@ func TestServerServesWebUIAtRoot(t *testing.T) {
 	if strings.Contains(body, "Create Job") {
 		t.Fatalf("expected UI to hide job creation controls, got %q", body)
 	}
-	if !strings.Contains(body, "Terminal") || !strings.Contains(body, "CLI Manager") {
-		t.Fatalf("expected terminal and inline CLI manager, got %q", body)
+	if !strings.Contains(body, "CLI Manager") || !strings.Contains(body, "Agent Runtime API") {
+		t.Fatalf("expected home CLI manager and API interface, got %q", body)
 	}
 	if strings.Contains(body, "Installed CLIs") || strings.Contains(body, "Repositories") || strings.Contains(body, `data-manager-tab`) || strings.Contains(body, `repositories-panel`) {
 		t.Fatalf("expected CLI manager to show cards without redundant tabs, got %q", body)
 	}
-	if strings.Contains(body, `data-view="tools-view"`) || strings.Contains(body, `id="tools-view"`) {
-		t.Fatalf("expected CLI manager to live inside terminal view, got %q", body)
+	if strings.Contains(body, `data-view="tools-view"`) || strings.Contains(body, `id="tools-view"`) || strings.Contains(body, `id="tenants-view"`) {
+		t.Fatalf("expected CLI manager and API docs to live in the single home shell, got %q", body)
 	}
-	if !strings.Contains(body, "/api/files") || !strings.Contains(body, "File Explorer") {
-		t.Fatalf("expected UI to include tenant file explorer, got %q", body)
+	if strings.Contains(body, "File Explorer") || strings.Contains(body, `id="file-tenant"`) || strings.Contains(body, `id="tenant-list"`) {
+		t.Fatalf("expected tenant/file management UI to be removed from the home shell, got %q", body)
 	}
-	if !strings.Contains(body, "/api/login") || !strings.Contains(body, `id="username"`) || !strings.Contains(body, `id="password"`) || strings.Contains(body, `id="token"`) {
-		t.Fatalf("expected UI to use username/password login instead of top-level token entry, got %q", body)
+	if strings.Contains(body, `class="context-bar"`) || strings.Contains(body, `id="apply-context"`) || strings.Contains(body, `label for="tenant"`) {
+		t.Fatalf("expected tenant context controls to be hidden from the home shell, got %q", body)
 	}
-	if !strings.Contains(body, "/assets/xterm/xterm.js") {
-		t.Fatalf("expected UI to load vendored xterm assets, got %q", body)
+	if !strings.Contains(body, "/api/login") || strings.Contains(body, `id="username"`) || strings.Contains(body, `id="password"`) || strings.Contains(body, `id="token"`) {
+		t.Fatalf("expected UI to use a silent default session without visible login controls, got %q", body)
+	}
+	if strings.Contains(body, "/assets/xterm/xterm.js") || strings.Contains(body, `id="terminal-container"`) {
+		t.Fatalf("expected UI to hide the terminal surface and xterm bundle, got %q", body)
 	}
 	if strings.Contains(body, `id="tool-path"`) || strings.Contains(body, `id="tool-name"`) {
 		t.Fatalf("expected UI to use official install sources instead of manual path registration")
+	}
+	for _, marker := range []string{
+		"/openapi.json",
+		"POST /api/jobs",
+		"WS /api/terminal",
+	} {
+		if !strings.Contains(body, marker) {
+			t.Fatalf("expected API interface marker %q", marker)
+		}
 	}
 	for _, marker := range []string{
 		"https://claude.ai/install.sh",
@@ -113,6 +125,59 @@ func TestServerServesWebUIAtRoot(t *testing.T) {
 	} {
 		if !strings.Contains(body, marker) {
 			t.Fatalf("expected UI to include official CLI logo or source %q", marker)
+		}
+	}
+}
+
+func TestServerStatusIncludesUserCount(t *testing.T) {
+	handler := newTestServer(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/status", nil)
+	res := httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", res.Code, res.Body.String())
+	}
+
+	var body struct {
+		Status string `json:"status"`
+		Tools  int    `json:"tools"`
+		Users  int    `json:"users"`
+	}
+	if err := json.Unmarshal(res.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode status response: %v", err)
+	}
+	if body.Status != "ok" || body.Tools != 1 || body.Users != 1 {
+		t.Fatalf("unexpected status response: %#v", body)
+	}
+}
+
+func TestServerServesOpenAPI(t *testing.T) {
+	handler := newTestServer(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/openapi.json", nil)
+	res := httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", res.Code, res.Body.String())
+	}
+
+	var body struct {
+		OpenAPI string `json:"openapi"`
+		Info    struct {
+			Title string `json:"title"`
+		} `json:"info"`
+		Paths map[string]any `json:"paths"`
+	}
+	if err := json.Unmarshal(res.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode openapi response: %v", err)
+	}
+	if body.OpenAPI != "3.1.0" || body.Info.Title != "Agent Runtime API" {
+		t.Fatalf("unexpected openapi metadata: %#v", body)
+	}
+	for _, path := range []string{"/api/status", "/api/tools", "/api/jobs", "/api/terminal"} {
+		if _, ok := body.Paths[path]; !ok {
+			t.Fatalf("expected openapi path %s in %#v", path, body.Paths)
 		}
 	}
 }

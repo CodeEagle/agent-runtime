@@ -56,6 +56,7 @@ func NewServer(options Options) http.Handler {
 	mux.HandleFunc("GET /api/health", server.health)
 	mux.HandleFunc("GET /api/ready", server.ready)
 	mux.HandleFunc("GET /api/status", server.status)
+	mux.HandleFunc("GET /openapi.json", server.openapi)
 	mux.HandleFunc("POST /api/login", server.login)
 	mux.HandleFunc("GET /api/session", server.session)
 	mux.HandleFunc("GET /api/tools", server.listTools)
@@ -115,14 +116,53 @@ func (s *server) status(w http.ResponseWriter, r *http.Request) {
 		toolCount = len(s.tools.List())
 	}
 	tenantCount := 0
+	userCount := 0
 	if s.tenants != nil {
 		tenantCount = len(s.tenants.List())
+		userCount = len(s.tenants.ListUsers())
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"status":   "ok",
 		"tools":    toolCount,
 		"tenants":  tenantCount,
+		"users":    userCount,
 		"terminal": s.terminal != nil,
+	})
+}
+
+func (s *server) openapi(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]any{
+		"openapi": "3.1.0",
+		"info": map[string]any{
+			"title":   "Agent Runtime API",
+			"version": "0.1.0",
+		},
+		"paths": map[string]any{
+			"/api/status": map[string]any{
+				"get": map[string]any{
+					"summary": "Runtime status",
+					"responses": map[string]any{
+						"200": map[string]any{"description": "Runtime status"},
+					},
+				},
+			},
+			"/api/tools": map[string]any{
+				"get":  map[string]any{"summary": "List CLI tools", "responses": map[string]any{"200": map[string]any{"description": "CLI tool list"}}},
+				"post": map[string]any{"summary": "Register or update CLI tool", "responses": map[string]any{"201": map[string]any{"description": "CLI tool saved"}}},
+			},
+			"/api/jobs": map[string]any{
+				"post": map[string]any{"summary": "Create a CLI job", "responses": map[string]any{"202": map[string]any{"description": "Job accepted"}}},
+			},
+			"/api/jobs/{id}": map[string]any{
+				"get": map[string]any{"summary": "Fetch job status", "responses": map[string]any{"200": map[string]any{"description": "Job status"}}},
+			},
+			"/api/jobs/{id}/events": map[string]any{
+				"get": map[string]any{"summary": "Read job events as Server-Sent Events", "responses": map[string]any{"200": map[string]any{"description": "Job events"}}},
+			},
+			"/api/terminal": map[string]any{
+				"get": map[string]any{"summary": "Open an interactive PTY WebSocket", "responses": map[string]any{"101": map[string]any{"description": "WebSocket upgrade"}}},
+			},
+		},
 	})
 }
 

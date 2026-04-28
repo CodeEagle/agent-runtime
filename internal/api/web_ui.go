@@ -6,15 +6,13 @@ const webUIHTML = `<!doctype html>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Agent Runtime</title>
-  <link rel="stylesheet" href="/assets/xterm/xterm.css">
   <style>
     :root {
       color-scheme: dark;
       --bg: #05070a;
-      --panel: rgba(10, 15, 23, 0.92);
+      --panel: rgba(10, 15, 23, 0.94);
       --panel-2: #0d141e;
       --card: #111923;
-      --card-2: #151f2b;
       --line: #1e2b39;
       --line-2: #2c4260;
       --text: #e8f3ff;
@@ -82,23 +80,28 @@ const webUIHTML = `<!doctype html>
       font-weight: 850;
       text-transform: uppercase;
     }
-    code, .mono { font-family: var(--mono); }
-    .app {
-      min-height: 100vh;
-      display: grid;
-      grid-template-columns: 232px minmax(0, 1fr);
+    code, pre, .mono { font-family: var(--mono); }
+    a { color: var(--cyan); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .shell {
+      width: min(1480px, calc(100vw - 32px));
+      margin: 0 auto;
+      padding: 16px 0 28px;
     }
-    .rail {
+    .topbar {
       position: sticky;
-      top: 0;
-      height: 100vh;
-      padding: 20px 14px;
-      border-right: 1px solid var(--line);
-      background: rgba(4, 8, 13, 0.88);
+      top: 12px;
+      z-index: 5;
+      display: grid;
+      grid-template-columns: minmax(260px, 1fr) auto auto;
+      gap: 14px;
+      align-items: center;
+      padding: 12px 14px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(8, 13, 20, 0.9);
       backdrop-filter: blur(18px);
-      display: flex;
-      flex-direction: column;
-      gap: 18px;
+      box-shadow: 0 20px 70px rgba(0, 0, 0, 0.3);
     }
     .brand { display: grid; grid-template-columns: 38px minmax(0, 1fr); gap: 10px; align-items: center; }
     .brand-mark {
@@ -115,68 +118,48 @@ const webUIHTML = `<!doctype html>
     }
     .brand-title { font-size: 17px; font-weight: 850; }
     .brand-subtitle { color: var(--faint); font-size: 12px; }
-    .nav { display: grid; gap: 8px; }
-    .nav-button {
-      width: 100%;
+    .view-switch, .lang-toggle {
       display: grid;
-      grid-template-columns: 24px minmax(0, 1fr) auto;
-      gap: 10px;
-      align-items: center;
-      padding: 9px 10px;
-      text-align: left;
+      grid-auto-flow: column;
+      gap: 4px;
+      padding: 4px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(3, 7, 12, 0.72);
+    }
+    .view-switch button, .lang-toggle button {
+      min-height: 30px;
+      border: 0;
+      padding: 0 12px;
       background: transparent;
       color: var(--muted);
-    }
-    .nav-button.active { border-color: rgba(37, 215, 207, 0.6); background: rgba(37, 215, 207, 0.1); color: var(--text); }
-    .nav-icon {
-      width: 24px;
-      height: 24px;
-      display: grid;
-      place-items: center;
-      border-radius: 7px;
-      background: rgba(255, 255, 255, 0.04);
-      color: var(--cyan);
-      font-family: var(--mono);
       font-size: 12px;
-      font-weight: 900;
     }
-    .rail-card {
-      margin-top: auto;
-      padding: 12px;
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      background: rgba(10, 16, 24, 0.74);
-    }
-    .rail-card-title { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 9px; color: var(--muted); font-size: 12px; font-weight: 850; text-transform: uppercase; }
-    .workspace { min-width: 0; padding: 16px; }
-    .topbar {
+    .view-switch button.active, .lang-toggle button.active { background: rgba(37, 215, 207, 0.15); color: var(--cyan); }
+    .top-actions { display: flex; gap: 8px; align-items: center; justify-content: flex-end; }
+    .hero {
+      margin-top: 16px;
       display: grid;
-      grid-template-columns: minmax(240px, 1fr) minmax(520px, 780px);
+      grid-template-columns: minmax(280px, 1fr) minmax(520px, 720px);
       gap: 16px;
-      align-items: center;
-      padding: 12px 14px;
+      align-items: stretch;
+    }
+    .headline {
+      min-height: 150px;
+      padding: 18px;
       border: 1px solid var(--line);
       border-radius: 8px;
-      background: rgba(8, 13, 20, 0.88);
-      backdrop-filter: blur(18px);
-      box-shadow: 0 20px 70px rgba(0, 0, 0, 0.3);
+      background: linear-gradient(135deg, rgba(13, 20, 30, 0.96), rgba(8, 13, 20, 0.9));
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
     }
-    .page-title h1 { margin: 0; font-size: 20px; line-height: 1.1; }
-    .page-title p { margin: 5px 0 0; color: var(--muted); font-size: 13px; }
-    .top-actions { display: grid; grid-template-columns: minmax(260px, 1fr) 78px 78px 92px 120px; gap: 8px; align-items: center; }
-    .login-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-    .login-field { display: grid; grid-template-columns: 82px minmax(0, 1fr); gap: 8px; align-items: center; }
-    .login-field span { color: var(--muted); font-size: 12px; font-weight: 850; text-transform: uppercase; }
-    .lang-toggle { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; border: 1px solid var(--line); border-radius: 8px; background: rgba(3, 7, 12, 0.72); }
-    .lang-toggle button { min-height: 28px; border: 0; background: transparent; color: var(--muted); font-size: 12px; }
-    .lang-toggle button.active { background: rgba(37, 215, 207, 0.15); color: var(--cyan); }
-    .content { margin-top: 16px; }
-    .view { display: none; }
-    .view.active { display: block; }
-    .status-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 16px; }
-    .metric { min-height: 66px; padding: 11px 12px; border: 1px solid var(--line); border-radius: 8px; background: rgba(10, 17, 26, 0.74); }
+    .headline h1 { margin: 0; font-size: 26px; line-height: 1.12; }
+    .headline p { margin: 8px 0 0; color: var(--muted); max-width: 720px; }
+    .status-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+    .metric { min-height: 72px; padding: 11px 12px; border: 1px solid var(--line); border-radius: 8px; background: rgba(10, 17, 26, 0.74); }
     .metric-label { color: var(--muted); font-size: 11px; font-weight: 850; text-transform: uppercase; }
-    .metric-value { margin-top: 8px; display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 850; overflow-wrap: anywhere; }
+    .metric-value { margin-top: 8px; display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 850; overflow-wrap: anywhere; }
     .led { width: 8px; height: 8px; border-radius: 999px; background: var(--amber); box-shadow: 0 0 14px rgba(244, 189, 87, 0.65); flex: 0 0 auto; }
     .led.ok { background: var(--green); box-shadow: 0 0 14px rgba(57, 217, 122, 0.72); }
     .led.bad { background: var(--red); box-shadow: 0 0 14px rgba(255, 92, 116, 0.72); }
@@ -197,25 +180,35 @@ const webUIHTML = `<!doctype html>
     .badge.ok { color: #b7ffd4; border-color: rgba(57, 217, 122, 0.38); }
     .badge.warn { color: #ffe0a3; border-color: rgba(244, 189, 87, 0.42); }
     .badge.bad { color: #ffb4c0; border-color: rgba(255, 92, 116, 0.42); }
+    .content { margin-top: 16px; }
+    .view { display: none; }
+    .view.active { display: block; }
+    .home-grid { display: grid; grid-template-columns: minmax(0, 1fr) 390px; gap: 16px; align-items: start; }
     .panel { border: 1px solid var(--line); border-radius: 8px; background: var(--panel); box-shadow: 0 24px 90px rgba(0, 0, 0, 0.28); overflow: hidden; }
     .panel-header { min-height: 58px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 14px; border-bottom: 1px solid var(--line); }
     .panel-title { display: flex; align-items: center; gap: 10px; min-width: 0; }
     .panel-title h2 { margin: 0; font-size: 15px; }
     .panel-title p { margin: 2px 0 0; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
-    .panel-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
-    .terminal-grid { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 16px; align-items: start; }
-    .context-bar { display: grid; grid-template-columns: 150px minmax(160px, 1fr) minmax(160px, 1fr); gap: 10px; padding: 14px; border-bottom: 1px solid var(--line); background: rgba(5, 9, 14, 0.35); align-items: end; }
-    .terminal-body { height: clamp(520px, calc(100vh - 336px), 780px); min-height: 520px; padding: 12px; }
-    .xterm-frame { height: 100%; overflow: hidden; border: 1px solid #172332; border-radius: 8px; background: #05070a; box-shadow: inset 0 0 42px rgba(37, 215, 207, 0.05); }
-    #terminal-container { height: 100%; width: 100%; padding: 8px; }
-    .xterm { height: 100%; padding: 2px; }
-    .manager-body { padding: 12px; display: grid; gap: 10px; }
-    .cli-card {
-      min-height: 116px;
+    .nav-icon {
+      width: 24px;
+      height: 24px;
       display: grid;
-      grid-template-columns: 58px minmax(0, 1fr) auto;
+      place-items: center;
+      border-radius: 7px;
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--cyan);
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 900;
+    }
+    .manager-body { padding: 14px; }
+    .cli-grid { display: grid; grid-template-columns: repeat(2, minmax(280px, 1fr)); gap: 10px; }
+    .cli-card {
+      min-height: 128px;
+      display: grid;
+      grid-template-columns: 58px minmax(0, 1fr);
       gap: 12px;
-      align-items: center;
+      align-items: start;
       padding: 12px;
       border: 1px solid var(--line);
       border-radius: 8px;
@@ -224,58 +217,68 @@ const webUIHTML = `<!doctype html>
     .cli-logo { width: 46px; height: 46px; display: grid; place-items: center; overflow: hidden; border: 1px solid rgba(44, 66, 96, 0.78); border-radius: 8px; background: rgba(3, 7, 12, 0.62); color: var(--cyan); font-size: 13px; font-weight: 900; }
     .cli-logo img { max-width: 36px; max-height: 36px; object-fit: contain; }
     .cli-logo span { width: 100%; height: 100%; display: none; place-items: center; }
+    .cli-main { min-width: 0; }
+    .cli-head { display: flex; gap: 8px; justify-content: space-between; align-items: start; }
     .cli-name { font-size: 16px; font-weight: 850; }
-    .cli-version { margin-top: 2px; color: var(--muted); font-family: var(--mono); font-size: 13px; }
-    .cli-health { margin-top: 10px; }
-    .cli-actions { display: grid; gap: 8px; min-width: 118px; }
-    .cli-actions a { min-height: 36px; display: grid; place-items: center; padding: 8px 10px; border: 1px solid var(--line-2); border-radius: 8px; background: rgba(6, 10, 15, 0.7); color: var(--muted); font-size: 13px; font-weight: 760; text-decoration: none; }
-    .cli-actions a:hover { border-color: rgba(37, 215, 207, 0.72); }
-    .tenant-layout { display: grid; grid-template-columns: 1fr; gap: 16px; align-items: start; }
-    .form-stack, .tenant-list, .file-body { display: grid; gap: 10px; padding: 14px; }
-    .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-    .tenant-card, .user-card { padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: rgba(7, 12, 18, 0.72); }
-    .tenant-card-head, .user-card-head { display: flex; justify-content: space-between; gap: 10px; align-items: center; margin-bottom: 10px; font-weight: 850; }
-    .tenant-card-actions, .user-card-actions { margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap; }
-    .kv { display: grid; gap: 8px; color: var(--muted); font-size: 12px; }
-    .kv div { display: grid; grid-template-columns: 118px minmax(0, 1fr); gap: 8px; }
-    .kv strong { color: var(--faint); font-size: 11px; font-weight: 850; text-transform: uppercase; }
-    .file-controls { display: grid; grid-template-columns: 150px 150px minmax(180px, 1fr) auto auto; gap: 10px; align-items: end; }
-    .file-path { padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px; background: rgba(3, 7, 12, 0.78); color: var(--muted); font-family: var(--mono); font-size: 12px; overflow-wrap: anywhere; }
-    .file-browser { height: clamp(420px, calc(100vh - 430px), 680px); min-height: 420px; display: grid; grid-template-columns: minmax(240px, 42%) minmax(0, 1fr); overflow: hidden; border: 1px solid var(--line); border-radius: 8px; background: rgba(4, 8, 13, 0.72); }
-    .file-list { overflow: auto; border-right: 1px solid var(--line); }
-    .file-row { display: grid; grid-template-columns: minmax(0, 1fr) 86px; gap: 10px; align-items: center; min-height: 36px; padding: 8px 10px; border-bottom: 1px solid rgba(30, 43, 57, 0.62); background: transparent; cursor: pointer; }
-    .file-row:hover, .file-row.active { background: rgba(37, 215, 207, 0.08); }
-    .file-name { display: flex; gap: 8px; align-items: center; min-width: 0; }
-    .file-name button { min-height: 26px; padding: 0; border: 0; background: transparent; color: var(--text); text-align: left; font-weight: 760; overflow-wrap: anywhere; cursor: pointer; }
-    .file-meta { color: var(--faint); font-family: var(--mono); font-size: 11px; }
-    .file-viewer { min-width: 0; display: flex; flex-direction: column; }
-    .file-viewbar { min-height: 38px; padding: 10px 12px; border-bottom: 1px solid var(--line); color: var(--muted); font-family: var(--mono); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .file-preview { flex: 1; margin: 0; padding: 12px; overflow: auto; white-space: pre; color: #d9e8f8; font-family: var(--mono); font-size: 12px; line-height: 1.45; }
+    .cli-provider { color: var(--faint); font-size: 12px; }
+    .cli-version { margin-top: 4px; color: var(--muted); font-family: var(--mono); font-size: 13px; overflow-wrap: anywhere; }
+    .cli-actions { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px; }
+    .cli-actions button, .cli-actions a { min-height: 34px; padding: 7px 10px; font-size: 12px; }
+    .cli-actions a { display: inline-grid; place-items: center; border: 1px solid var(--line-2); border-radius: 8px; background: rgba(6, 10, 15, 0.7); color: var(--muted); font-weight: 760; }
+    .activity-body { padding: 14px; display: grid; gap: 10px; }
+    .activity-log {
+      min-height: 360px;
+      max-height: calc(100vh - 430px);
+      margin: 0;
+      padding: 12px;
+      overflow: auto;
+      white-space: pre-wrap;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(3, 7, 12, 0.84);
+      color: #d9e8f8;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+    .activity-links { display: grid; gap: 8px; }
+    .activity-links a { display: block; padding: 8px 10px; border: 1px solid rgba(37, 215, 207, 0.3); border-radius: 8px; background: rgba(37, 215, 207, 0.08); overflow-wrap: anywhere; }
+    .api-shell { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 16px; align-items: start; }
+    .api-index { position: sticky; top: 104px; padding: 10px; display: grid; gap: 8px; }
+    .api-index button { text-align: left; padding: 9px 10px; background: transparent; color: var(--muted); }
+    .api-index button.active { border-color: rgba(37, 215, 207, 0.6); background: rgba(37, 215, 207, 0.1); color: var(--text); }
+    .api-docs { display: grid; gap: 12px; }
+    .api-card { border: 1px solid var(--line); border-radius: 8px; background: rgba(7, 12, 18, 0.72); overflow: hidden; }
+    .api-card-head { display: flex; gap: 10px; justify-content: space-between; align-items: center; padding: 13px 14px; border-bottom: 1px solid var(--line); }
+    .api-card-head h3 { margin: 0; font-size: 15px; }
+    .api-card-body { padding: 14px; display: grid; gap: 10px; color: var(--muted); }
+    .method { min-width: 58px; justify-content: center; font-family: var(--mono); }
+    .method.get { color: #b7ffd4; border-color: rgba(57, 217, 122, 0.38); }
+    .method.post { color: #c8dcff; border-color: rgba(76, 134, 255, 0.42); }
+    .method.delete { color: #ffb4c0; border-color: rgba(255, 92, 116, 0.42); }
+    .method.ws { color: #c5f9ff; border-color: rgba(37, 215, 207, 0.42); }
+    .code-block { position: relative; }
+    .code-block pre { margin: 0; padding: 12px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; background: rgba(3, 7, 12, 0.84); color: #d9e8f8; font-size: 12px; line-height: 1.45; }
+    .copy { position: absolute; right: 8px; top: 8px; min-height: 28px; font-size: 11px; }
     .empty { padding: 18px; color: var(--muted); border: 1px dashed var(--line-2); border-radius: 8px; background: rgba(255, 255, 255, 0.025); }
-    .hidden { display: none !important; }
     .toast { position: fixed; right: 18px; bottom: 18px; z-index: 10; display: none; max-width: 420px; padding: 12px 14px; border: 1px solid rgba(37, 215, 207, 0.42); border-radius: 8px; background: rgba(5, 10, 16, 0.96); color: var(--text); box-shadow: 0 20px 70px rgba(0, 0, 0, 0.45); }
     .toast.show { display: block; }
     @media (max-width: 1180px) {
-      .app { grid-template-columns: 1fr; }
-      .rail { position: relative; height: auto; flex-direction: row; align-items: center; overflow-x: auto; }
-      .nav { grid-auto-flow: column; grid-auto-columns: max-content; }
-      .rail-card { display: none; }
-      .topbar, .terminal-grid, .tenant-layout { grid-template-columns: 1fr; }
+      .topbar, .hero, .home-grid, .api-shell { grid-template-columns: 1fr; }
+      .api-index { position: static; }
+      .cli-grid { grid-template-columns: 1fr; }
     }
     @media (max-width: 760px) {
-      .workspace { padding: 10px; }
-      .top-actions, .status-grid, .context-bar, .field-row, .file-controls, .login-fields, .file-browser { grid-template-columns: 1fr; }
-      .login-field { grid-template-columns: 1fr; }
-      .terminal-body { height: 460px; min-height: 460px; }
-      .file-browser { height: 620px; }
-      .file-list { border-right: 0; border-bottom: 1px solid var(--line); }
-      .cli-card, .file-row { grid-template-columns: 1fr; }
+      .shell { width: min(100vw - 20px, 1480px); padding-top: 10px; }
+      .topbar { position: static; }
+      .top-actions, .status-grid { grid-template-columns: 1fr; display: grid; }
+      .view-switch, .lang-toggle { width: 100%; grid-auto-flow: column; }
+      .cli-card { grid-template-columns: 1fr; }
     }
   </style>
 </head>
 <body>
-  <div class="app">
-    <aside class="rail">
+  <div class="shell">
+    <header class="topbar">
       <div class="brand">
         <div class="brand-mark">AR</div>
         <div>
@@ -283,355 +286,279 @@ const webUIHTML = `<!doctype html>
           <div class="brand-subtitle" data-i18n="brandSubtitle">CLI 控制平面</div>
         </div>
       </div>
-      <nav class="nav" aria-label="Main navigation">
-        <button class="nav-button active" type="button" data-view="terminal-view">
-          <span class="nav-icon">&gt;_</span><span data-i18n="navTerminal">终端</span><span>01</span>
-        </button>
-        <button class="nav-button" type="button" data-view="tenants-view">
-          <span class="nav-icon">TN</span><span data-i18n="navTenants">租户</span><span>02</span>
-        </button>
-      </nav>
-      <div class="rail-card">
-        <div class="rail-card-title"><span data-i18n="session">会话</span><span id="role-label">-</span></div>
-        <div class="badge"><span class="led" id="session-led"></span><span id="session-label">not logged in</span></div>
+      <div class="view-switch" aria-label="View switch">
+        <button class="active" type="button" data-view="home-view" data-i18n="home">首页</button>
+        <button type="button" data-view="api-view" data-i18n="api">API</button>
       </div>
-    </aside>
-
-    <div class="workspace">
-      <header class="topbar">
-        <div class="page-title">
-          <h1 id="page-heading">终端</h1>
-          <p id="page-subtitle">登录认证、安装 CLI、检查租户隔离都从这里开始。</p>
+      <div class="top-actions">
+        <button class="ghost" id="refresh" type="button" data-i18n="refresh">刷新</button>
+        <div class="lang-toggle" aria-label="Language">
+          <button id="lang-zh" type="button" data-lang="zh">中文</button>
+          <button id="lang-en" type="button" data-lang="en">EN</button>
         </div>
-        <div class="top-actions">
-          <div class="login-fields">
-            <div class="login-field">
-              <span data-i18n="username">用户名</span>
-              <input id="username" autocomplete="username" placeholder="admin">
+      </div>
+    </header>
+
+    <section class="hero">
+      <div class="headline">
+        <div>
+          <h1 id="page-heading">CLI Agent Runtime</h1>
+          <p id="page-subtitle">统一安装、授权和探测 Claude Code、Codex、Gemini、OpenCode 等 CLI。</p>
+        </div>
+      </div>
+      <div class="status-grid">
+        <div class="metric">
+          <div class="metric-label" data-i18n="health">健康状态</div>
+          <div class="metric-value"><span class="led" id="health-led"></span><span id="health">loading</span></div>
+        </div>
+        <div class="metric">
+          <div class="metric-label" data-i18n="ready">就绪状态</div>
+          <div class="metric-value"><span class="led" id="ready-led"></span><span id="ready">loading</span></div>
+        </div>
+        <div class="metric">
+          <div class="metric-label" data-i18n="availableCli">可用 CLI</div>
+          <div class="metric-value"><span id="available-cli">0 / 0</span></div>
+        </div>
+        <div class="metric">
+          <div class="metric-label" data-i18n="usersOnline">使用者</div>
+          <div class="metric-value"><span id="user-count">0</span></div>
+        </div>
+      </div>
+    </section>
+
+    <main class="content">
+      <section class="view active" id="home-view">
+        <div class="home-grid">
+          <section class="panel">
+            <div class="panel-header">
+              <div class="panel-title">
+                <span class="nav-icon">CL</span>
+                <div>
+                  <h2>CLI Manager</h2>
+                  <p data-i18n="cliManagerDesc">安装、授权和验证都通过按钮完成，不暴露 shell。</p>
+                </div>
+              </div>
+              <button class="ghost" id="refresh-tools" type="button" data-i18n="refresh">刷新</button>
             </div>
-            <div class="login-field">
-              <span data-i18n="password">密码</span>
-              <input id="password" type="password" autocomplete="current-password" placeholder="admin">
+            <div hidden>
+              <span id="session-badge"><span id="session-led"></span><span id="session-label">initializing</span></span>
+              <span id="context-label">- / - / -</span>
+              <select id="tenant"></select>
+              <input id="workspace" value="repo-main">
+              <input id="profile" value="team-default" list="profile-options">
+              <datalist id="profile-options"></datalist>
             </div>
-          </div>
-          <button class="primary" id="login" type="button" data-i18n="login">登录</button>
-          <button class="ghost" id="logout" type="button" data-i18n="logout">退出</button>
-          <button class="ghost" id="refresh" type="button" data-i18n="refresh">刷新</button>
-          <div class="lang-toggle" aria-label="Language">
-            <button id="lang-zh" type="button" data-lang="zh">中文</button>
-            <button id="lang-en" type="button" data-lang="en">EN</button>
-          </div>
+            <div class="manager-body">
+              <div class="cli-grid" id="installed-panel"></div>
+            </div>
+          </section>
+
+          <aside class="panel">
+            <div class="panel-header">
+              <div class="panel-title">
+                <span class="nav-icon">AC</span>
+                <div>
+                  <h2 data-i18n="activity">操作状态</h2>
+                  <p id="action-title" data-i18n="activityDesc">安装和授权输出会整理在这里。</p>
+                </div>
+              </div>
+              <button class="ghost" id="stop-action" type="button" data-i18n="stop">停止</button>
+            </div>
+            <div class="activity-body">
+              <div class="badge warn"><span class="led" id="action-led"></span><span id="action-state" data-i18n="idle">空闲</span></div>
+              <div class="activity-links" id="activity-links"></div>
+              <pre class="activity-log" id="activity-log"></pre>
+            </div>
+          </aside>
         </div>
-      </header>
+      </section>
 
-      <main class="content">
-        <div class="status-grid">
-          <div class="metric">
-            <div class="metric-label" data-i18n="health">健康状态</div>
-            <div class="metric-value"><span class="led" id="health-led"></span><span id="health">loading</span></div>
-          </div>
-          <div class="metric">
-            <div class="metric-label" data-i18n="ready">就绪状态</div>
-            <div class="metric-value"><span class="led" id="ready-led"></span><span id="ready">loading</span></div>
-          </div>
-          <div class="metric">
-            <div class="metric-label" data-i18n="availableCli">可用 CLI</div>
-            <div class="metric-value"><span id="available-cli">0 / 0</span></div>
-          </div>
-          <div class="metric">
-            <div class="metric-label" data-i18n="tenants">租户</div>
-            <div class="metric-value"><span id="tenant-count">0</span></div>
-          </div>
+      <section class="view" id="api-view">
+        <div class="api-shell">
+          <aside class="panel api-index">
+            <button class="active" type="button" data-api-target="overview">Overview</button>
+            <button type="button" data-api-target="status">GET /api/status</button>
+            <button type="button" data-api-target="tools">GET /api/tools</button>
+            <button type="button" data-api-target="tool-update">POST /api/tools</button>
+            <button type="button" data-api-target="jobs">POST /api/jobs</button>
+            <button type="button" data-api-target="job-events">GET /api/jobs/{id}/events</button>
+            <button type="button" data-api-target="terminal-api">WS /api/terminal</button>
+          </aside>
+          <section class="api-docs">
+            <article class="api-card" id="overview">
+              <div class="api-card-head">
+                <h3 data-i18n="apiOverview">Agent Runtime API</h3>
+                <span class="badge">OpenAPI</span>
+              </div>
+              <div class="api-card-body">
+                <p data-i18n="apiOverviewDesc">服务调用默认使用 Bearer Token。人用入口走首页按钮，服务间调用走 Job API。</p>
+                <div class="code-block"><button class="copy" data-copy="#base-url" type="button">Copy</button><pre id="base-url">Base URL: BASE_URL
+Authorization: Bearer &lt;token&gt;</pre></div>
+                <p><a href="/openapi.json" target="_blank" rel="noopener noreferrer">/openapi.json</a></p>
+              </div>
+            </article>
+
+            <article class="api-card" id="status">
+              <div class="api-card-head"><h3><span class="badge method get">GET</span> /api/status</h3></div>
+              <div class="api-card-body">
+                <p data-i18n="statusDesc">查询运行时状态、CLI 数量和使用者数量。</p>
+                <div class="code-block"><button class="copy" data-copy="#status-code" type="button">Copy</button><pre id="status-code">curl -s BASE_URL/api/status</pre></div>
+              </div>
+            </article>
+
+            <article class="api-card" id="tools">
+              <div class="api-card-head"><h3><span class="badge method get">GET</span> /api/tools</h3></div>
+              <div class="api-card-body">
+                <p data-i18n="toolsDesc">列出已注册 CLI，并可按租户和凭据配置探测真实 PATH 状态。</p>
+                <div class="code-block"><button class="copy" data-copy="#tools-code" type="button">Copy</button><pre id="tools-code">curl -s "BASE_URL/api/tools?tenant=team-a&credential_profile=team-default" \
+  -H "Authorization: Bearer &lt;token&gt;"</pre></div>
+              </div>
+            </article>
+
+            <article class="api-card" id="tool-update">
+              <div class="api-card-head"><h3><span class="badge method post">POST</span> /api/tools</h3></div>
+              <div class="api-card-body">
+                <p data-i18n="toolUpdateDesc">管理员注册或更新 CLI wrapper。普通安装建议使用首页 CLI Manager。</p>
+                <div class="code-block"><button class="copy" data-copy="#tool-code" type="button">Copy</button><pre id="tool-code">curl -s -X POST BASE_URL/api/tools \
+  -H "Authorization: Bearer &lt;admin-token&gt;" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"codex","path":"codex","version":"official","credential_env":"CODEX_HOME","credential_subdir":".codex"}'</pre></div>
+              </div>
+            </article>
+
+            <article class="api-card" id="jobs">
+              <div class="api-card-head"><h3><span class="badge method post">POST</span> /api/jobs</h3></div>
+              <div class="api-card-body">
+                <p data-i18n="jobsDesc">服务间调用入口。调用方只能使用 token 策略允许的 tool、workspace 和 credential profile。</p>
+                <div class="code-block"><button class="copy" data-copy="#job-code" type="button">Copy</button><pre id="job-code">curl -s -X POST BASE_URL/api/jobs \
+  -H "Authorization: Bearer &lt;token&gt;" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "tenant": "team-a",
+    "tool": "codex",
+    "args": ["exec", "fix tests"],
+    "workspace": "repo-main",
+    "credential_profile": "team-default",
+    "timeout_seconds": 900
+  }'</pre></div>
+              </div>
+            </article>
+
+            <article class="api-card" id="job-events">
+              <div class="api-card-head"><h3><span class="badge method get">GET</span> /api/jobs/{id}/events</h3></div>
+              <div class="api-card-body">
+                <p data-i18n="eventsDesc">读取 job 事件流。当前实现返回 Server-Sent Events。</p>
+                <div class="code-block"><button class="copy" data-copy="#events-code" type="button">Copy</button><pre id="events-code">curl -N BASE_URL/api/jobs/&lt;job-id&gt;/events</pre></div>
+              </div>
+            </article>
+
+            <article class="api-card" id="terminal-api">
+              <div class="api-card-head"><h3><span class="badge method ws">WS</span> /api/terminal</h3></div>
+              <div class="api-card-body">
+                <p data-i18n="terminalApiDesc">交互式 PTY API 仍保留给集成方；首页不会显示终端。</p>
+                <div class="code-block"><button class="copy" data-copy="#terminal-code" type="button">Copy</button><pre id="terminal-code">WSS_BASE/api/terminal?token=&lt;token&gt;&tenant=team-a&workspace=repo-main&credential_profile=team-default</pre></div>
+              </div>
+            </article>
+          </section>
         </div>
-
-        <section class="view active" id="terminal-view">
-          <div class="terminal-grid">
-            <section class="panel">
-              <div class="panel-header">
-                <div class="panel-title">
-                  <span class="nav-icon">&gt;_</span>
-                  <div>
-                    <h2 data-i18n="terminal">终端</h2>
-                    <p id="terminal-context">- / - / -</p>
-                  </div>
-                </div>
-                <div class="panel-actions">
-                  <span class="badge warn" id="connection-badge"><span class="led" id="terminal-led"></span><span id="terminal-state">disconnected</span></span>
-                  <button class="primary" id="connect-terminal" type="button" data-i18n="connect">连接</button>
-                  <button class="ghost" id="clear-terminal" type="button" data-i18n="clear">清屏</button>
-                  <button class="ghost" id="disconnect-terminal" type="button" data-i18n="disconnect">断开</button>
-                </div>
-              </div>
-              <div class="context-bar">
-                <div>
-                  <label for="tenant" data-i18n="tenant">租户</label>
-                  <select id="tenant"></select>
-                </div>
-                <div>
-                  <label for="workspace" data-i18n="workspace">工作区</label>
-                  <input id="workspace" value="repo-main">
-                </div>
-                <div>
-                  <label for="profile" data-i18n="credentialProfile">凭据配置</label>
-                  <input id="profile" value="team-default" list="profile-options">
-                  <datalist id="profile-options"></datalist>
-                </div>
-              </div>
-              <div class="terminal-body">
-                <div class="xterm-frame"><div id="terminal-container"></div></div>
-              </div>
-            </section>
-
-            <aside class="panel">
-              <div class="panel-header">
-                <div class="panel-title">
-                  <span class="nav-icon">CL</span>
-                  <div>
-                    <h2>CLI Manager</h2>
-                    <p data-i18n="cliManagerDesc">安装状态来自真实 PATH 探测。</p>
-                  </div>
-                </div>
-                <button class="ghost" id="refresh-tools" type="button" title="Refresh">↻</button>
-              </div>
-              <div class="manager-body">
-                <div id="installed-panel"></div>
-              </div>
-            </aside>
-          </div>
-        </section>
-
-        <section class="view" id="tenants-view">
-          <div class="tenant-layout">
-            <section class="panel">
-              <div class="panel-header">
-                <div class="panel-title">
-                  <span class="nav-icon">TN</span>
-                  <div>
-                    <h2 data-i18n="tenantManager">用户与租户</h2>
-                    <p data-i18n="tenantManagerDesc">admin 管理用户和租户边界，普通用户只看到自己的租户。</p>
-                  </div>
-                </div>
-              </div>
-              <div class="form-stack hidden" id="admin-user-form">
-                <div class="field-row">
-                  <div><label for="username-new" data-i18n="username">用户名</label><input id="username-new" placeholder="team-b"></div>
-                  <div><label for="password-new" data-i18n="password">密码</label><input id="password-new" type="password" autocomplete="new-password" placeholder="••••••••"></div>
-                </div>
-                <div class="field-row">
-                  <div><label for="subject-new" data-i18n="subject">主体</label><input id="subject-new" placeholder="tenant-user:team-b"></div>
-                  <div><label for="tenant-new" data-i18n="tenant">租户</label><input id="tenant-new" placeholder="team-b"></div>
-                </div>
-                <div class="field-row">
-                  <div><label for="role-new" data-i18n="role">角色</label><select id="role-new"><option value="tenant">tenant</option><option value="admin">admin</option></select></div>
-                  <div><label for="duration-new" data-i18n="maxDuration">最长任务秒数</label><input id="duration-new" type="number" value="900"></div>
-                </div>
-                <div><label for="tools-new" data-i18n="allowedTools">允许工具</label><input id="tools-new" value="codex,claude,gemini,opencode,iflow,kimi,qoder"></div>
-                <div><label for="workspaces-new" data-i18n="allowedWorkspaces">允许工作区</label><input id="workspaces-new" value="repo-*"></div>
-                <div><label for="profiles-new" data-i18n="allowedProfiles">允许凭据配置</label><input id="profiles-new" value="team-default"></div>
-                <div><label for="terminal-new" data-i18n="terminalAccess">终端权限</label><select id="terminal-new"><option value="true">allow</option><option value="false">block</option></select></div>
-                <button class="primary" id="save-user" type="button" data-i18n="saveUser">保存用户</button>
-              </div>
-              <div class="tenant-list" id="tenant-list"></div>
-              <div class="tenant-list hidden" id="user-list"></div>
-            </section>
-
-            <section class="panel">
-              <div class="panel-header">
-                <div class="panel-title">
-                  <span class="nav-icon">FS</span>
-                  <div>
-                    <h2 data-i18n="fileExplorer">文件浏览器</h2>
-                    <p data-i18n="fileExplorerDesc">admin 可切换全部租户，普通租户只能访问自己的目录。</p>
-                  </div>
-                </div>
-              </div>
-              <div class="file-body">
-                <div class="file-controls">
-                  <div><label for="file-tenant" data-i18n="tenant">租户</label><select id="file-tenant"></select></div>
-                  <div><label for="file-space" data-i18n="folder">目录</label><select id="file-space"><option value="workspaces">workspaces</option><option value="homes">homes</option></select></div>
-                  <div><label for="file-path-input" data-i18n="path">路径</label><input id="file-path-input" value="/"></div>
-                  <button class="ghost" id="file-parent" type="button" data-i18n="up">上级</button>
-                  <button class="primary" id="file-refresh" type="button" data-i18n="open">打开</button>
-                </div>
-                <div class="file-path" id="file-abs-path">-</div>
-                <div class="file-browser">
-                  <div class="file-list" id="file-list"></div>
-                  <div class="file-viewer">
-                    <div class="file-viewbar" id="file-view-path" data-i18n="noFileSelected">未选择文件</div>
-                    <pre class="file-preview" id="file-preview"></pre>
-                  </div>
-                </div>
-              </div>
-            </section>
-          </div>
-        </section>
-      </main>
-    </div>
+      </section>
+    </main>
   </div>
 
   <div class="toast" id="toast"></div>
 
-  <script src="/assets/xterm/xterm.js"></script>
   <script>
     const messages = {
       zh: {
         brandSubtitle: 'CLI 控制平面',
-        navTerminal: '终端',
-        navTenants: '租户',
-        session: '会话',
-        username: '用户名',
-        password: '密码',
-        login: '登录',
-        logout: '退出',
+        home: '首页',
+        api: 'API',
         refresh: '刷新',
         health: '健康状态',
         ready: '就绪状态',
         availableCli: '可用 CLI',
-        tenants: '租户',
-        terminal: '终端',
-        terminalSubtitle: '登录认证、安装 CLI、检查租户隔离都从这里开始。',
-        tenantsSubtitle: '管理用户、查看租户边界和隔离文件系统。',
-        connect: '连接',
-        clear: '清屏',
-        disconnect: '断开',
-        tenant: '租户',
-        workspace: '工作区',
-        credentialProfile: '凭据配置',
-        cliManagerDesc: '安装状态来自真实 PATH 探测。',
-        installCli: '安装 CLI',
-        quickLogin: 'Quick Login',
+        usersOnline: '使用者',
+        cliManagerDesc: '安装、授权和验证都通过按钮完成，不暴露 shell。',
+        installCli: '安装',
+        authorize: '授权',
         verify: '验证',
         officialSource: '官方来源',
+        remove: '移除',
         healthOK: 'Health OK',
         notInstalled: '未安装',
-        loginToCheck: '登录后检查',
+        initializing: '初始化中',
         checking: '检查中',
-        registeredOnly: '仅注册',
-        delete: '删除',
-        tenantManager: '用户与租户',
-        tenantManagerDesc: 'admin 管理用户和租户边界，普通用户只看到自己的租户。',
-        subject: '主体',
-        role: '角色',
-        allowedTools: '允许工具',
-        allowedWorkspaces: '允许工作区',
-        allowedProfiles: '允许凭据配置',
-        terminalAccess: '终端权限',
-        maxDuration: '最长任务秒数',
-        saveUser: '保存用户',
-        terminalAllowed: '允许终端',
-        terminalBlocked: '禁止终端',
-        subjects: '主体',
-        tools: '工具',
-        workspaces: '工作区',
-        profiles: '凭据配置',
-        tokenCount: '凭据数',
-        dataFolders: '数据目录',
-        browseFiles: '打开文件',
-        fileExplorer: '文件浏览器',
-        fileExplorerDesc: 'admin 可切换全部租户，普通租户只能访问自己的目录。',
-        folder: '目录',
-        path: '路径',
-        up: '上级',
-        open: '打开',
-        noFiles: '目录为空',
-        noFileSelected: '未选择文件',
-        noTenants: '暂无可访问租户',
-        noUsers: '暂无用户',
-        userSaved: '用户已保存',
-        userDeleted: '用户已删除',
-        connected: '已连接',
+        unavailable: '不可用',
+        activity: '操作状态',
+        activityDesc: '安装和授权输出会整理在这里。',
+        stop: '停止',
+        idle: '空闲',
+        running: '运行中',
         disconnected: '未连接',
-        connecting: '连接中',
-        connectionError: '连接错误',
-        exited: '已退出',
-        terminalWelcome: 'Agent Runtime 终端已就绪。先登录用户，再连接 shell 或执行 CLI 安装/登录。',
-        terminalConnecting: '正在连接终端...',
-        loginOK: '登录成功',
+        connected: '已连接',
+        loginOK: '会话已就绪',
+        loginFailed: '默认会话不可用',
         refreshed: '状态已刷新',
-        loggedOut: '已退出登录'
+        commandStarted: '已启动',
+        commandStopped: '已停止',
+        copied: '已复制',
+        apiOverview: 'Agent Runtime API',
+        apiOverviewDesc: '服务调用默认使用 Bearer Token。人用入口走首页按钮，服务间调用走 Job API。',
+        statusDesc: '查询运行时状态、CLI 数量和使用者数量。',
+        toolsDesc: '列出已注册 CLI，并可按租户和凭据配置探测真实 PATH 状态。',
+        toolUpdateDesc: '管理员注册或更新 CLI wrapper。普通安装建议使用首页 CLI Manager。',
+        jobsDesc: '服务间调用入口。调用方只能使用 token 策略允许的 tool、workspace 和 credential profile。',
+        eventsDesc: '读取 job 事件流。当前实现返回 Server-Sent Events。',
+        terminalApiDesc: '交互式 PTY API 仍保留给集成方；首页不会显示终端。'
       },
       en: {
         brandSubtitle: 'CLI control plane',
-        navTerminal: 'Terminal',
-        navTenants: 'Tenants',
-        session: 'Session',
-        username: 'Username',
-        password: 'Password',
-        login: 'Login',
-        logout: 'Logout',
+        home: 'Home',
+        api: 'API',
         refresh: 'Refresh',
         health: 'Health',
         ready: 'Ready',
         availableCli: 'Available CLI',
-        tenants: 'Tenants',
-        terminal: 'Terminal',
-        terminalSubtitle: 'Login, CLI installation, and tenant isolation checks start here.',
-        tenantsSubtitle: 'Manage users, inspect tenant boundaries, and browse isolated filesystems.',
-        connect: 'Connect',
-        clear: 'Clear',
-        disconnect: 'Disconnect',
-        tenant: 'Tenant',
-        workspace: 'Workspace',
-        credentialProfile: 'Credential Profile',
-        cliManagerDesc: 'Install state is checked against the real PATH.',
-        installCli: 'Install CLI',
-        quickLogin: 'Quick Login',
+        usersOnline: 'Users',
+        cliManagerDesc: 'Install, authorize, and verify CLIs through UI actions without exposing a shell.',
+        installCli: 'Install',
+        authorize: 'Authorize',
         verify: 'Verify',
         officialSource: 'Official Source',
+        remove: 'Remove',
         healthOK: 'Health OK',
         notInstalled: 'Not installed',
-        loginToCheck: 'Login to check',
+        initializing: 'Initializing',
         checking: 'Checking',
-        registeredOnly: 'Registered only',
-        delete: 'Delete',
-        tenantManager: 'Users & Tenants',
-        tenantManagerDesc: 'Admins manage users and tenant boundaries. Users only see their own tenant.',
-        subject: 'Subject',
-        role: 'Role',
-        allowedTools: 'Allowed Tools',
-        allowedWorkspaces: 'Allowed Workspaces',
-        allowedProfiles: 'Allowed Profiles',
-        terminalAccess: 'Terminal Access',
-        maxDuration: 'Max Job Seconds',
-        saveUser: 'Save User',
-        terminalAllowed: 'Terminal allowed',
-        terminalBlocked: 'Terminal blocked',
-        subjects: 'Subjects',
-        tools: 'Tools',
-        workspaces: 'Workspaces',
-        profiles: 'Profiles',
-        tokenCount: 'Credential Count',
-        dataFolders: 'Data Folders',
-        browseFiles: 'Open Files',
-        fileExplorer: 'File Explorer',
-        fileExplorerDesc: 'Admins can switch tenants. Tenant users can only access their own folders.',
-        folder: 'Folder',
-        path: 'Path',
-        up: 'Up',
-        open: 'Open',
-        noFiles: 'Folder is empty',
-        noFileSelected: 'No file selected',
-        noTenants: 'No accessible tenants',
-        noUsers: 'No users',
-        userSaved: 'User saved',
-        userDeleted: 'User deleted',
-        connected: 'Connected',
+        unavailable: 'Unavailable',
+        activity: 'Activity',
+        activityDesc: 'Install and authorization output is summarized here.',
+        stop: 'Stop',
+        idle: 'Idle',
+        running: 'Running',
         disconnected: 'Disconnected',
-        connecting: 'Connecting',
-        connectionError: 'Connection error',
-        exited: 'Exited',
-        terminalWelcome: 'Agent Runtime terminal is ready. Log in as a user, then connect a shell or run CLI install/login.',
-        terminalConnecting: 'Connecting terminal...',
-        loginOK: 'Login succeeded',
+        connected: 'Connected',
+        loginOK: 'Session ready',
+        loginFailed: 'Default session unavailable',
         refreshed: 'Runtime status refreshed',
-        loggedOut: 'Logged out'
+        commandStarted: 'Started',
+        commandStopped: 'Stopped',
+        copied: 'Copied',
+        apiOverview: 'Agent Runtime API',
+        apiOverviewDesc: 'Service calls use Bearer tokens by default. Human workflows use the home screen; service workflows use the Job API.',
+        statusDesc: 'Inspect runtime health, CLI counts, and user counts.',
+        toolsDesc: 'List registered CLIs and probe tenant/profile-specific PATH health.',
+        toolUpdateDesc: 'Admins can register or update CLI wrappers. Normal installs should use the home CLI Manager.',
+        jobsDesc: 'Service-to-service execution entrypoint constrained by token policy.',
+        eventsDesc: 'Read job event output. Current implementation returns Server-Sent Events.',
+        terminalApiDesc: 'Interactive PTY API remains available for integrations; the home screen does not show a terminal.'
       }
     };
 
     const savedLanguage = localStorage.getItem('agent-runtime-lang');
     const state = {
       lang: savedLanguage || 'zh',
-      view: 'terminal-view',
+      view: 'home-view',
       sessionToken: localStorage.getItem('agent-runtime-session-token') || localStorage.getItem('agent-runtime-token') || '',
       session: null,
       tools: [],
@@ -641,15 +568,10 @@ const webUIHTML = `<!doctype html>
       users: [],
       ws: null,
       connected: false,
-      statusKey: 'disconnected',
-      term: null,
-      pendingCommand: '',
-      installPollTimer: null,
-      userDefaults: { tenant: '', subject: '' }
+      actionBusy: false,
+      activityText: '',
+      installPollTimer: null
     };
-    const usernameInput = document.getElementById('username');
-    const passwordInput = document.getElementById('password');
-    usernameInput.value = localStorage.getItem('agent-runtime-username') || 'admin';
 
     const installSources = [
       { label: 'Claude Code', fallback: 'CC', logo: '/assets/logos/claude.svg', tool: 'claude', command: 'curl -fsSL https://claude.ai/install.sh | bash', verify: 'claude --version', login: 'claude', docs: 'https://docs.anthropic.com/en/docs/claude-code/quickstart', provider: 'Anthropic' },
@@ -667,30 +589,6 @@ const webUIHTML = `<!doctype html>
       return String(value == null ? '' : value).replace(/[&<>"']/g, function(char) {
         return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char];
       });
-    }
-    function join(values) { return values && values.length ? values.join(', ') : '-'; }
-    function splitCSV(value) { return String(value || '').split(',').map(function(item) { return item.trim(); }).filter(Boolean); }
-    function slugFromUsername(value) {
-      const slug = String(value || '').toLowerCase().trim()
-        .replace(/[^a-z0-9._-]+/g, '-')
-        .replace(/-+/g, '-')
-        .replace(/^[-._]+|[-._]+$/g, '');
-      return slug || 'tenant';
-    }
-    function syncUserDefaults(force) {
-      const username = $('username-new').value.trim();
-      const tenant = slugFromUsername(username);
-      const subject = 'tenant-user:' + tenant;
-      if (force || !$('tenant-new').value.trim() || $('tenant-new').value === state.userDefaults.tenant) {
-        $('tenant-new').value = username ? tenant : '';
-      }
-      if (force || !$('subject-new').value.trim() || $('subject-new').value === state.userDefaults.subject) {
-        $('subject-new').value = username ? subject : '';
-      }
-      state.userDefaults = {
-        tenant: username ? tenant : '',
-        subject: username ? subject : ''
-      };
     }
     function authHeaders() {
       return state.sessionToken ? { Authorization: 'Bearer ' + state.sessionToken } : {};
@@ -723,168 +621,98 @@ const webUIHTML = `<!doctype html>
       document.querySelectorAll('[data-i18n]').forEach(function(el) { el.textContent = t(el.dataset.i18n); });
       $('lang-zh').classList.toggle('active', state.lang === 'zh');
       $('lang-en').classList.toggle('active', state.lang === 'en');
+      applyApiExamples();
       updatePageTitle();
       renderSession();
-      renderTerminalOptions();
       renderCliManager();
-      renderTenants();
-      renderUsers();
-      setConnected(state.connected, state.statusKey);
-      if (state.term && state.term.buffer.active.length <= 2) {
-        state.term.clear();
-        state.term.writeln(t('terminalWelcome'));
-      }
+      renderActionState();
+    }
+
+    function applyApiExamples() {
+      const base = window.location.origin;
+      const wsBase = (window.location.protocol === 'https:' ? 'wss://' : 'ws://') + window.location.host;
+      $('base-url').textContent = 'Base URL: ' + base + '\nAuthorization: Bearer <token>';
+      $('status-code').textContent = 'curl -s ' + base + '/api/status';
+      $('tools-code').textContent = 'curl -s "' + base + '/api/tools?tenant=team-a&credential_profile=team-default" \\\n  -H "Authorization: Bearer <token>"';
+      $('tool-code').textContent = 'curl -s -X POST ' + base + '/api/tools \\\n  -H "Authorization: Bearer <admin-token>" \\\n  -H "Content-Type: application/json" \\\n  -d ' + "'{\"name\":\"codex\",\"path\":\"codex\",\"version\":\"official\",\"credential_env\":\"CODEX_HOME\",\"credential_subdir\":\".codex\"}'";
+      $('job-code').textContent = 'curl -s -X POST ' + base + '/api/jobs \\\n  -H "Authorization: Bearer <token>" \\\n  -H "Content-Type: application/json" \\\n  -d ' + "'{\\n    \"tenant\": \"team-a\",\\n    \"tool\": \"codex\",\\n    \"args\": [\"exec\", \"fix tests\"],\\n    \"workspace\": \"repo-main\",\\n    \"credential_profile\": \"team-default\",\\n    \"timeout_seconds\": 900\\n  }'";
+      $('events-code').textContent = 'curl -N ' + base + '/api/jobs/<job-id>/events';
+      $('terminal-code').textContent = wsBase + '/api/terminal?token=<token>&tenant=team-a&workspace=repo-main&credential_profile=team-default';
     }
 
     function updatePageTitle() {
-      const titles = {
-        'terminal-view': [t('terminal'), t('terminalSubtitle')],
-        'tenants-view': [t('tenants'), t('tenantsSubtitle')]
-      };
-      const value = titles[state.view] || titles['terminal-view'];
-      $('page-heading').textContent = value[0];
-      $('page-subtitle').textContent = value[1];
-    }
-
-    function initTerminal() {
-      if (!window.Terminal) {
-        showToast('xterm.js not loaded');
-        return;
-      }
-      state.term = new window.Terminal({
-        cursorBlink: true,
-        convertEol: true,
-        fontFamily: 'JetBrains Mono, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-        fontSize: 13,
-        lineHeight: 1.25,
-        scrollback: 5000,
-        theme: {
-          background: '#05070a',
-          foreground: '#d8dee9',
-          cursor: '#42ff9c',
-          selectionBackground: '#284b3c',
-          red: '#ff5c73',
-          green: '#37e681',
-          yellow: '#f5bc4f',
-          blue: '#4c8dff',
-          magenta: '#b68cff',
-          cyan: '#28e0d4'
-        }
-      });
-      state.term.open($('terminal-container'));
-      state.term.writeln(t('terminalWelcome'));
-      state.term.onData(function(data) {
-        if (state.ws && state.ws.readyState === WebSocket.OPEN) {
-          state.ws.send(JSON.stringify({ type: 'input', data: data }));
-        }
-      });
-      if (window.ResizeObserver) {
-        new ResizeObserver(function() { resizeTerminal(); }).observe($('terminal-container'));
+      if (state.view === 'api-view') {
+        $('page-heading').textContent = 'Agent Runtime API';
+        $('page-subtitle').textContent = t('apiOverviewDesc');
       } else {
-        window.addEventListener('resize', resizeTerminal);
+        $('page-heading').textContent = 'CLI Agent Runtime';
+        $('page-subtitle').textContent = t('cliManagerDesc');
       }
-      window.setTimeout(resizeTerminal, 0);
     }
 
-    function resizeTerminal() {
-      if (!state.term) return { cols: 120, rows: 32 };
-      const rect = $('terminal-container').getBoundingClientRect();
-      const cols = Math.max(40, Math.floor(rect.width / 9));
-      const rows = Math.max(12, Math.floor(rect.height / 18));
-      state.term.resize(cols, rows);
-      if (state.ws && state.ws.readyState === WebSocket.OPEN) {
-        state.ws.send(JSON.stringify({ type: 'resize', cols: cols, rows: rows }));
-      }
-      return { cols: cols, rows: rows };
-    }
-
-    async function login(showMessage) {
-      const username = usernameInput.value.trim();
+    async function loginDefault() {
       const response = await fetch('/api/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: username, password: passwordInput.value })
+        body: JSON.stringify({ username: 'admin', password: 'admin' })
       });
-      if (!response.ok) {
-        let message = response.statusText;
-        try {
-          const body = await response.json();
-          message = body.error || message;
-        } catch (err) {}
-        throw new Error(message);
-      }
+      if (!response.ok) throw new Error(t('loginFailed'));
       const body = await response.json();
       state.sessionToken = body.token || '';
       state.session = body.session || null;
       localStorage.setItem('agent-runtime-session-token', state.sessionToken);
-      localStorage.setItem('agent-runtime-username', username);
-      passwordInput.value = '';
-      renderSession();
-      await refreshSecure();
-      if (showMessage) showToast(t('loginOK') + ': ' + state.session.subject);
+      localStorage.removeItem('agent-runtime-token');
     }
 
-    async function restoreSession() {
-      if (!state.sessionToken) throw new Error('not logged in');
-      state.session = await api('/api/session');
-      localStorage.setItem('agent-runtime-session-token', state.sessionToken);
-      localStorage.removeItem('agent-runtime-token');
-      renderSession();
-      await refreshSecure();
-    }
-
-    function logout() {
-      state.sessionToken = '';
-      state.session = null;
-      state.tenants = [];
-      state.users = [];
-      state.tools = [];
-      state.toolsLoaded = false;
-      state.toolsContextReady = false;
-      localStorage.removeItem('agent-runtime-session-token');
-      localStorage.removeItem('agent-runtime-token');
-      disconnectTerminal();
-      renderSession();
-      renderTerminalOptions();
-      renderCliManager();
-      renderTenants();
-      renderUsers();
-      showToast(t('loggedOut'));
+    async function restoreOrLogin() {
+      if (state.session) return;
+      if (state.sessionToken) {
+        try {
+          state.session = await api('/api/session');
+          localStorage.setItem('agent-runtime-session-token', state.sessionToken);
+          localStorage.removeItem('agent-runtime-token');
+          return;
+        } catch (err) {
+          state.sessionToken = '';
+          localStorage.removeItem('agent-runtime-session-token');
+          localStorage.removeItem('agent-runtime-token');
+        }
+      }
+      await loginDefault();
     }
 
     async function refresh() {
       const results = await Promise.allSettled([api('/api/health'), api('/api/ready'), api('/api/status')]);
       setMetric('health', 'health-led', results[0].status === 'fulfilled' ? results[0].value.status : 'error');
       setMetric('ready', 'ready-led', results[1].status === 'fulfilled' ? results[1].value.status : 'error');
+      if (results[2].status === 'fulfilled') {
+        $('user-count').textContent = String(results[2].value.users || 0);
+      }
       try {
-        await restoreSession();
+        await restoreOrLogin();
+        await refreshSecure();
       } catch (err) {
         state.session = null;
         state.tenants = [];
         state.users = [];
-        state.toolsLoaded = false;
         state.toolsContextReady = false;
+        await refreshTools().catch(function() {});
         renderSession();
+        renderContextOptions();
         renderCliManager();
-        renderTenants();
-        renderUsers();
+        showToast(err.message);
       }
     }
 
     async function refreshSecure() {
       await refreshTenants();
-      renderTerminalOptions();
+      renderContextOptions();
       await refreshTools();
       if (state.session && state.session.admin) {
-        await refreshUsers();
-      } else {
-        state.users = [];
+        await refreshUsers().catch(function() {});
       }
       renderSession();
       renderCliManager();
-      renderTenants();
-      renderUsers();
-      await refreshFiles().catch(function() {});
     }
 
     async function refreshTools() {
@@ -904,12 +732,12 @@ const webUIHTML = `<!doctype html>
     async function refreshTenants() {
       const body = await api('/api/tenants');
       state.tenants = body.tenants || [];
-      $('tenant-count').textContent = String(state.tenants.length);
     }
 
     async function refreshUsers() {
       const body = await api('/api/users');
       state.users = body.users || [];
+      if (state.users.length) $('user-count').textContent = String(state.users.length);
     }
 
     function setMetric(textID, ledID, value) {
@@ -924,131 +752,146 @@ const webUIHTML = `<!doctype html>
       const loggedIn = !!state.session;
       $('session-led').classList.toggle('ok', loggedIn);
       $('session-led').classList.toggle('bad', !loggedIn);
-      $('session-label').textContent = loggedIn ? state.session.subject : 'not logged in';
-      $('role-label').textContent = loggedIn ? state.session.role : '-';
-      $('admin-user-form').classList.toggle('hidden', !(state.session && state.session.admin));
-      $('user-list').classList.toggle('hidden', !(state.session && state.session.admin));
-      $('login').disabled = loggedIn;
-      $('logout').disabled = !loggedIn;
+      $('session-badge').classList.toggle('ok', loggedIn);
+      $('session-badge').classList.toggle('bad', !loggedIn);
+      $('session-label').textContent = loggedIn ? state.session.subject : t('disconnected');
     }
 
-    function renderTerminalOptions() {
+    function renderContextOptions() {
       const tenantSelect = $('tenant');
-      const fileTenantSelect = $('file-tenant');
       const currentTenant = tenantSelect.value;
-      const currentFileTenant = fileTenantSelect.value;
-      const tenantOptions = state.tenants.map(function(tenant) {
+      const sourceTenants = state.tenants.length ? state.tenants : (state.session ? [{ id: state.session.tenant, credential_profiles: state.session.allowed_credential_profiles, workspace_patterns: state.session.allowed_workspaces }] : []);
+      tenantSelect.innerHTML = sourceTenants.map(function(tenant) {
         return '<option value="' + escapeHTML(tenant.id) + '">' + escapeHTML(tenant.id) + '</option>';
       }).join('');
-      tenantSelect.innerHTML = tenantOptions;
-      fileTenantSelect.innerHTML = tenantOptions;
       if (currentTenant) tenantSelect.value = currentTenant;
-      if (!tenantSelect.value && state.tenants[0]) tenantSelect.value = state.tenants[0].id;
-      if (currentFileTenant) fileTenantSelect.value = currentFileTenant;
-      if (!fileTenantSelect.value && tenantSelect.value) fileTenantSelect.value = tenantSelect.value;
+      if (!tenantSelect.value && sourceTenants[0]) tenantSelect.value = sourceTenants[0].id;
       updateProfileOptions();
     }
 
     function updateProfileOptions() {
       const tenant = state.tenants.find(function(item) { return item.id === $('tenant').value; });
-      const profiles = tenant && tenant.credential_profiles ? tenant.credential_profiles : [];
+      const profiles = tenant && tenant.credential_profiles ? tenant.credential_profiles : (state.session ? state.session.allowed_credential_profiles || [] : []);
       $('profile-options').innerHTML = profiles.map(function(profile) {
         return '<option value="' + escapeHTML(profile) + '"></option>';
       }).join('');
-      if (profiles.length && !$('profile').value) $('profile').value = profiles[0];
-      const workspaces = tenant && tenant.workspace_patterns ? tenant.workspace_patterns : [];
-      if (!$('workspace').value && workspaces[0]) $('workspace').value = workspaces[0].replace('*', 'main');
+      if (profiles.length && (!$('profile').value || $('profile').value === 'team-default')) $('profile').value = profiles[0];
+      const workspaces = tenant && tenant.workspace_patterns ? tenant.workspace_patterns : (state.session ? state.session.allowed_workspaces || [] : []);
+      if (workspaces[0] && (!$('workspace').value || $('workspace').value === 'repo-main')) $('workspace').value = workspaces[0].replace('*', 'main');
       updateContextLabels();
     }
 
     function updateContextLabels() {
-      $('terminal-context').textContent = ($('tenant').value || '-') + ' / ' + ($('workspace').value || '-') + ' / ' + ($('profile').value || '-');
+      $('context-label').textContent = ($('tenant').value || '-') + ' / ' + ($('workspace').value || '-') + ' / ' + ($('profile').value || '-');
     }
 
     function terminalURL() {
-      const size = resizeTerminal();
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const params = new URLSearchParams({
         token: state.sessionToken,
         tenant: $('tenant').value,
         workspace: $('workspace').value.trim(),
         credential_profile: $('profile').value.trim(),
-        cols: String(size.cols),
-        rows: String(size.rows)
+        cols: '120',
+        rows: '32'
       });
       return protocol + '//' + window.location.host + '/api/v1/terminal/ws?' + params.toString();
     }
 
-    function connectTerminal() {
-      if (!state.term) initTerminal();
-      if (!state.term) return;
-      if (state.ws) state.ws.close();
-      state.term.clear();
-      state.term.writeln(t('terminalConnecting'));
-      setConnected(false, 'connecting');
-      const ws = new WebSocket(terminalURL());
-      state.ws = ws;
-      ws.onopen = function() {
-        setConnected(true, 'connected');
-        state.term.clear();
-        state.term.focus();
-        resizeTerminal();
-        if (state.pendingCommand) {
-          const command = state.pendingCommand;
-          state.pendingCommand = '';
-          window.setTimeout(function() { sendTerminal(command); }, 180);
+    function connectActionSocket() {
+      if (state.ws && state.ws.readyState === WebSocket.OPEN) return Promise.resolve(state.ws);
+      return new Promise(function(resolve, reject) {
+        if (!state.session) {
+          reject(new Error(t('loginFailed')));
+          return;
         }
-      };
-      ws.onmessage = function(event) {
-        try {
-          const payload = JSON.parse(event.data);
-          if (payload.type === 'output') state.term.write(payload.data || '');
-          if (payload.type === 'error') state.term.writeln('\r\n[terminal error] ' + (payload.data || 'unknown error'));
-          if (payload.type === 'exit') setConnected(false, 'exited');
-        } catch (err) {
-          state.term.write(String(event.data));
-        }
-      };
-      ws.onclose = function() {
-        if (state.ws === ws) state.ws = null;
-        setConnected(false, 'disconnected');
-      };
-      ws.onerror = function() { setConnected(false, 'connectionError'); };
+        const ws = new WebSocket(terminalURL());
+        state.ws = ws;
+        const timer = window.setTimeout(function() { reject(new Error('connection timeout')); }, 8000);
+        ws.onopen = function() {
+          window.clearTimeout(timer);
+          state.connected = true;
+          renderActionState();
+          resolve(ws);
+        };
+        ws.onmessage = function(event) {
+          try {
+            const payload = JSON.parse(event.data);
+            if (payload.type === 'output') appendActivity(payload.data || '');
+            if (payload.type === 'error') appendActivity('\n[error] ' + (payload.data || 'unknown error') + '\n');
+            if (payload.type === 'exit') {
+              state.connected = false;
+              state.actionBusy = false;
+              renderActionState();
+            }
+          } catch (err) {
+            appendActivity(String(event.data));
+          }
+        };
+        ws.onclose = function() {
+          state.connected = false;
+          state.actionBusy = false;
+          renderActionState();
+        };
+        ws.onerror = function() {
+          state.connected = false;
+          state.actionBusy = false;
+          renderActionState();
+        };
+      });
     }
 
-    function disconnectTerminal() {
+    function disconnectActionSocket() {
       if (state.ws) state.ws.close();
       state.ws = null;
-      setConnected(false, 'disconnected');
+      state.connected = false;
+      state.actionBusy = false;
+      renderActionState();
     }
 
-    function setConnected(connected, statusKey) {
-      state.connected = connected;
-      state.statusKey = statusKey || (connected ? 'connected' : 'disconnected');
-      $('terminal-state').textContent = t(state.statusKey);
-      $('connect-terminal').disabled = connected;
-      $('disconnect-terminal').disabled = !connected;
-      $('terminal-led').classList.remove('ok', 'bad');
-      if (connected) $('terminal-led').classList.add('ok');
-      if (state.statusKey === 'connectionError') $('terminal-led').classList.add('bad');
-      $('connection-badge').classList.toggle('ok', connected);
-      $('connection-badge').classList.toggle('warn', !connected);
-    }
-
-    function sendTerminal(data) {
-      if (!state.ws || state.ws.readyState !== WebSocket.OPEN) return;
-      state.ws.send(JSON.stringify({ type: 'input', data: data }));
-    }
-
-    function runCommand(command) {
-      const payload = command + '\r';
-      if (state.connected) {
-        sendTerminal(payload);
-        state.term.focus();
+    async function runCommand(command, title) {
+      if (!state.session) {
+        showToast(t('loginFailed'));
         return;
       }
-      state.pendingCommand = payload;
-      connectTerminal();
+      $('action-title').textContent = title;
+      appendActivity('\n$ ' + command + '\n');
+      state.actionBusy = true;
+      renderActionState();
+      const ws = await connectActionSocket();
+      window.setTimeout(function() {
+        ws.send(JSON.stringify({ type: 'input', data: command + '\r' }));
+      }, 180);
+      showToast(t('commandStarted') + ': ' + title);
+    }
+
+    function cleanOutput(value) {
+      return String(value || '').replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, '');
+    }
+
+    function appendActivity(value) {
+      state.activityText += cleanOutput(value);
+      if (state.activityText.length > 24000) state.activityText = state.activityText.slice(-24000);
+      const log = $('activity-log');
+      log.textContent = state.activityText.trimStart();
+      log.scrollTop = log.scrollHeight;
+      renderActivityLinks();
+    }
+
+    function renderActivityLinks() {
+      const urls = Array.from(new Set((state.activityText.match(/https?:\/\/[^\s"'<>]+/g) || []).map(function(url) {
+        return url.replace(/[),.]+$/, '');
+      }))).slice(-5);
+      $('activity-links').innerHTML = urls.map(function(url) {
+        return '<a href="' + escapeHTML(url) + '" target="_blank" rel="noopener noreferrer">' + escapeHTML(url) + '</a>';
+      }).join('');
+    }
+
+    function renderActionState() {
+      const key = state.actionBusy ? 'running' : (state.connected ? 'connected' : 'idle');
+      $('action-state').textContent = t(key);
+      $('action-led').classList.toggle('ok', state.connected || state.actionBusy);
+      $('action-led').classList.toggle('bad', false);
     }
 
     function startInstallPolling() {
@@ -1065,40 +908,35 @@ const webUIHTML = `<!doctype html>
       }, 3000);
     }
 
-    function renderCliManager() {
-      renderInstalledClis();
-    }
-
     function renderCliLogo(source) {
       const fallback = source.fallback || source.label.slice(0, 2).toUpperCase();
       return '<div class="cli-logo"><img src="' + escapeHTML(source.logo || '') + '" alt="' + escapeHTML(source.label) + '" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.display=&quot;none&quot;;this.nextElementSibling.style.display=&quot;grid&quot;"><span>' + escapeHTML(fallback) + '</span></div>';
     }
 
-    function renderInstalledClis() {
+    function renderCliManager() {
       const known = new Map(state.tools.map(function(tool) { return [tool.name, tool]; }));
       $('installed-panel').innerHTML = installSources.map(function(source) {
         const tool = known.get(source.tool) || { name: source.tool, available: false, health: 'missing' };
         const canCheck = state.toolsLoaded && state.toolsContextReady;
         const available = canCheck && !!tool.available;
-        const version = available ? (tool.detected_version || tool.version || '-') : (canCheck ? t('notInstalled') : t('loginToCheck'));
+        const version = available ? (tool.detected_version || tool.version || '-') : (canCheck ? t('notInstalled') : t('initializing'));
         const healthClass = available ? 'ok' : (canCheck ? 'bad' : 'warn');
-        const healthText = available ? t('healthOK') : (canCheck ? t('notInstalled') : t('loginToCheck'));
-        const actions = !canCheck
-          ? '<button class="ghost" type="button" disabled>' + escapeHTML(t('checking')) + '</button>'
-          : available
-          ? '<button class="ghost" type="button" data-login-command="' + escapeHTML(source.login) + '">' + escapeHTML(t('quickLogin')) + ' ↪</button>' +
-            '<button class="ghost" type="button" data-install-command="' + escapeHTML(source.verify) + '">' + escapeHTML(t('verify')) + '</button>' +
-            (state.session && state.session.admin && known.has(source.tool) ? '<button class="danger" type="button" data-delete-tool="' + escapeHTML(source.tool) + '">' + escapeHTML(t('delete')) + '</button>' : '')
-          : '<button class="primary" type="button" data-install-command="' + escapeHTML(source.command) + '">' + escapeHTML(t('installCli')) + '</button>' +
+        const healthText = available ? t('healthOK') : (canCheck ? t('notInstalled') : t('checking'));
+        const disabled = canCheck ? '' : ' disabled';
+        const actions = available
+          ? '<button class="ghost" type="button" data-login-command="' + escapeHTML(source.login) + '"' + disabled + '>' + escapeHTML(t('authorize')) + '</button>' +
+            '<button class="ghost" type="button" data-install-command="' + escapeHTML(source.verify) + '"' + disabled + '>' + escapeHTML(t('verify')) + '</button>' +
+            (state.session && state.session.admin && known.has(source.tool) ? '<button class="danger" type="button" data-delete-tool="' + escapeHTML(source.tool) + '">' + escapeHTML(t('remove')) + '</button>' : '')
+          : '<button class="primary" type="button" data-install-command="' + escapeHTML(source.command) + '"' + disabled + '>' + escapeHTML(t('installCli')) + '</button>' +
+            '<button class="ghost" type="button" data-login-command="' + escapeHTML(source.login) + '"' + disabled + '>' + escapeHTML(t('authorize')) + '</button>' +
             '<a href="' + escapeHTML(source.docs) + '" target="_blank" rel="noopener noreferrer">' + escapeHTML(t('officialSource')) + '</a>';
         return '<article class="cli-card">' +
           renderCliLogo(source) +
-          '<div>' +
-            '<div class="cli-name">' + escapeHTML(source.label) + '</div>' +
+          '<div class="cli-main">' +
+            '<div class="cli-head"><div><div class="cli-name">' + escapeHTML(source.label) + '</div><div class="cli-provider">' + escapeHTML(source.provider) + '</div></div><span class="badge ' + healthClass + '"><span class="led ' + (available ? 'ok' : 'bad') + '"></span>' + escapeHTML(healthText) + '</span></div>' +
             '<div class="cli-version">' + escapeHTML(version) + '</div>' +
-            '<div class="cli-health"><span class="badge ' + healthClass + '"><span class="led ' + (available ? 'ok' : 'bad') + '"></span>' + escapeHTML(healthText) + '</span></div>' +
+            '<div class="cli-actions">' + actions + '</div>' +
           '</div>' +
-          '<div class="cli-actions">' + actions + '</div>' +
         '</article>';
       }).join('');
       bindManagerButtons($('installed-panel'));
@@ -1107,12 +945,13 @@ const webUIHTML = `<!doctype html>
     function bindManagerButtons(root) {
       root.querySelectorAll('[data-install-command]').forEach(function(button) {
         button.addEventListener('click', function() {
-          runCommand(button.dataset.installCommand);
-          startInstallPolling();
+          runCommand(button.dataset.installCommand, button.textContent.trim()).then(startInstallPolling).catch(function(err) { showToast(err.message); });
         });
       });
       root.querySelectorAll('[data-login-command]').forEach(function(button) {
-        button.addEventListener('click', function() { runCommand(button.dataset.loginCommand); });
+        button.addEventListener('click', function() {
+          runCommand(button.dataset.loginCommand, button.textContent.trim()).catch(function(err) { showToast(err.message); });
+        });
       });
       root.querySelectorAll('[data-delete-tool]').forEach(function(button) {
         button.addEventListener('click', async function() {
@@ -1123,180 +962,29 @@ const webUIHTML = `<!doctype html>
       });
     }
 
-    function renderTenants() {
-      const container = $('tenant-list');
-      if (!state.tenants.length) {
-        container.innerHTML = '<div class="empty">' + escapeHTML(t('noTenants')) + '</div>';
-        return;
-      }
-      container.innerHTML = state.tenants.map(function(tenant) {
-        return '<article class="tenant-card">' +
-          '<div class="tenant-card-head"><span>' + escapeHTML(tenant.id) + '</span></div>' +
-          '<div class="kv">' +
-            '<div><strong>' + escapeHTML(t('subjects')) + '</strong><span>' + escapeHTML(join(tenant.subjects)) + '</span></div>' +
-            '<div><strong>' + escapeHTML(t('terminalAccess')) + '</strong><span>' + escapeHTML(tenant.allow_terminal ? t('terminalAllowed') : t('terminalBlocked')) + '</span></div>' +
-            '<div><strong>' + escapeHTML(t('tools')) + '</strong><span>' + escapeHTML(join(tenant.allowed_tools)) + '</span></div>' +
-            '<div><strong>' + escapeHTML(t('workspaces')) + '</strong><span>' + escapeHTML(join(tenant.workspace_patterns)) + '</span></div>' +
-            '<div><strong>' + escapeHTML(t('profiles')) + '</strong><span>' + escapeHTML(join(tenant.credential_profiles)) + '</span></div>' +
-            '<div><strong>' + escapeHTML(t('tokenCount')) + '</strong><span>' + escapeHTML(tenant.token_count || 0) + '</span></div>' +
-            '<div><strong>' + escapeHTML(t('dataFolders')) + '</strong><span class="mono">tenants/' + escapeHTML(tenant.id) + '/workspaces<br>tenants/' + escapeHTML(tenant.id) + '/homes</span></div>' +
-          '</div>' +
-          '<div class="tenant-card-actions"><button class="ghost" type="button" data-browse-tenant="' + escapeHTML(tenant.id) + '">' + escapeHTML(t('browseFiles')) + '</button></div>' +
-        '</article>';
-      }).join('');
-      container.querySelectorAll('[data-browse-tenant]').forEach(function(button) {
-        button.addEventListener('click', function() {
-          $('file-tenant').value = button.dataset.browseTenant;
-          $('file-space').value = 'workspaces';
-          $('file-path-input').value = '/';
-          refreshFiles().catch(function(err) { showToast(err.message); });
-        });
-      });
-    }
-
-    function renderUsers() {
-      if (!(state.session && state.session.admin)) return;
-      const container = $('user-list');
-      if (!state.users.length) {
-        container.innerHTML = '<div class="empty">' + escapeHTML(t('noUsers')) + '</div>';
-        return;
-      }
-      container.innerHTML = state.users.map(function(item) {
-        return '<article class="user-card">' +
-          '<div class="user-card-head"><span>' + escapeHTML(item.username) + '</span><span class="badge">' + escapeHTML(item.role) + '</span></div>' +
-          '<div class="kv">' +
-            '<div><strong>' + escapeHTML(t('subject')) + '</strong><span>' + escapeHTML(item.subject) + '</span></div>' +
-            '<div><strong>' + escapeHTML(t('tenant')) + '</strong><span>' + escapeHTML(item.tenant) + '</span></div>' +
-            '<div><strong>' + escapeHTML(t('terminalAccess')) + '</strong><span>' + escapeHTML(item.allow_terminal ? t('terminalAllowed') : t('terminalBlocked')) + '</span></div>' +
-            '<div><strong>' + escapeHTML(t('tools')) + '</strong><span>' + escapeHTML(join(item.allowed_tools)) + '</span></div>' +
-            '<div><strong>' + escapeHTML(t('profiles')) + '</strong><span>' + escapeHTML(join(item.allowed_credential_profiles)) + '</span></div>' +
-          '</div>' +
-          '<div class="user-card-actions"><button class="ghost" type="button" data-browse-tenant="' + escapeHTML(item.tenant) + '">' + escapeHTML(t('browseFiles')) + '</button><button class="danger" type="button" data-delete-user="' + escapeHTML(item.id) + '">' + escapeHTML(t('delete')) + '</button></div>' +
-        '</article>';
-      }).join('');
-      container.querySelectorAll('[data-browse-tenant]').forEach(function(button) {
-        button.addEventListener('click', function() {
-          $('file-tenant').value = button.dataset.browseTenant;
-          $('file-space').value = 'workspaces';
-          $('file-path-input').value = '/';
-          refreshFiles().catch(function(err) { showToast(err.message); });
-        });
-      });
-      container.querySelectorAll('[data-delete-user]').forEach(function(button) {
-        button.addEventListener('click', async function() {
-          await api('/api/users/' + encodeURIComponent(button.dataset.deleteUser), { method: 'DELETE' });
-          showToast(t('userDeleted'));
-          await refreshSecure();
-        });
-      });
-    }
-
-    async function saveUser() {
-      syncUserDefaults(false);
-      const payload = {
-        username: $('username-new').value.trim(),
-        password: $('password-new').value,
-        subject: $('subject-new').value.trim(),
-        tenant: $('tenant-new').value.trim(),
-        role: $('role-new').value,
-        allowed_tools: splitCSV($('tools-new').value),
-        allowed_workspaces: splitCSV($('workspaces-new').value),
-        allowed_credential_profiles: splitCSV($('profiles-new').value),
-        allow_terminal: $('terminal-new').value === 'true',
-        max_job_seconds: Number($('duration-new').value || 0)
-      };
-      const user = await api('/api/users', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-      $('password-new').value = '';
-      showToast(t('userSaved'));
-      await refreshSecure();
-      if (user && user.tenant) {
-        $('file-tenant').value = user.tenant;
-        $('file-space').value = 'workspaces';
-        $('file-path-input').value = '/';
-        await refreshFiles().catch(function(err) { showToast(err.message); });
-      }
-    }
-
-    async function refreshFiles() {
-      if (!$('file-tenant').value) {
-        $('file-list').innerHTML = '<div class="empty">' + escapeHTML(t('noTenants')) + '</div>';
-        $('file-view-path').textContent = t('noFileSelected');
-        $('file-preview').textContent = '';
-        return;
-      }
-      const params = new URLSearchParams({
-        tenant: $('file-tenant').value,
-        space: $('file-space').value,
-        path: $('file-path-input').value.trim()
-      });
-      const body = await api('/api/files?' + params.toString());
-      $('file-abs-path').textContent = body.abs_path || '-';
-      $('file-path-input').value = body.path && body.path !== '.' ? '/' + body.path : '/';
-      $('file-view-path').textContent = t('noFileSelected');
-      $('file-preview').textContent = '';
-      if (!body.entries || !body.entries.length) {
-        $('file-list').innerHTML = '<div class="empty">' + escapeHTML(t('noFiles')) + '</div>';
-        return;
-      }
-      $('file-list').innerHTML = body.entries.map(function(item) {
-        const isDir = item.kind === 'directory';
-        const icon = isDir ? '▸' : '·';
-        const size = isDir ? item.kind : formatBytes(item.size || 0);
-        return '<div class="file-row" data-entry-kind="' + escapeHTML(item.kind) + '" data-entry-path="/' + escapeHTML(item.path) + '">' +
-          '<div class="file-name"><span>' + escapeHTML(icon) + '</span>' +
-          '<button type="button">' + escapeHTML(item.name + (isDir ? '/' : '')) + '</button>' +
-          '</div>' +
-          '<div class="file-meta">' + escapeHTML(size) + '</div>' +
-        '</div>';
-      }).join('');
-      $('file-list').querySelectorAll('[data-entry-path]').forEach(function(row) {
-        row.addEventListener('click', async function() {
-          $('file-list').querySelectorAll('.file-row').forEach(function(item) { item.classList.remove('active'); });
-          row.classList.add('active');
-          if (row.dataset.entryKind === 'directory') {
-            $('file-path-input').value = row.dataset.entryPath;
-            await refreshFiles().catch(function(err) { showToast(err.message); });
-            return;
-          }
-          await previewFile(row.dataset.entryPath).catch(function(err) { showToast(err.message); });
-        });
-      });
-    }
-
-    async function previewFile(path) {
-      const params = new URLSearchParams({
-        tenant: $('file-tenant').value,
-        space: $('file-space').value,
-        path: path
-      });
-      $('file-view-path').textContent = path;
-      $('file-preview').textContent = 'Loading...';
-      const body = await api('/api/files/raw?' + params.toString());
-      $('file-view-path').textContent = (body.path && body.path !== '.' ? '/' + body.path : path) + ' · ' + formatBytes(body.size || 0);
-      $('file-preview').textContent = body.content + (body.truncated ? '\n\n[truncated]' : '');
-    }
-
-    function formatBytes(value) {
-      value = Number(value || 0);
-      if (value < 1024) return value + ' B';
-      if (value < 1024 * 1024) return (value / 1024).toFixed(1) + ' KB';
-      return (value / 1024 / 1024).toFixed(1) + ' MB';
-    }
-
-    function parentPath(path) {
-      path = String(path || '/').replace(/\/+$/, '');
-      if (!path || path === '/') return '/';
-      const index = path.lastIndexOf('/');
-      return index <= 0 ? '/' : path.slice(0, index);
-    }
-
     function switchView(viewID) {
       state.view = viewID;
-      document.querySelectorAll('.nav-button').forEach(function(item) { item.classList.toggle('active', item.dataset.view === viewID); });
+      document.querySelectorAll('[data-view]').forEach(function(item) { item.classList.toggle('active', item.dataset.view === viewID); });
       document.querySelectorAll('.view').forEach(function(item) { item.classList.toggle('active', item.id === viewID); });
       updatePageTitle();
-      if (viewID === 'terminal-view') window.setTimeout(resizeTerminal, 0);
-      if (viewID === 'tenants-view') refreshFiles().catch(function(err) { showToast(err.message); });
+    }
+
+    function bindApiIndex() {
+      document.querySelectorAll('[data-api-target]').forEach(function(button) {
+        button.addEventListener('click', function() {
+          document.querySelectorAll('[data-api-target]').forEach(function(item) { item.classList.toggle('active', item === button); });
+          const target = document.getElementById(button.dataset.apiTarget);
+          if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+      });
+      document.querySelectorAll('[data-copy]').forEach(function(button) {
+        button.addEventListener('click', async function() {
+          const target = document.querySelector(button.dataset.copy);
+          if (!target) return;
+          await navigator.clipboard.writeText(target.textContent);
+          showToast(t('copied'));
+        });
+      });
     }
 
     document.querySelectorAll('[data-view]').forEach(function(button) { button.addEventListener('click', function() { switchView(button.dataset.view); }); });
@@ -1307,28 +995,16 @@ const webUIHTML = `<!doctype html>
         applyLanguage();
       });
     });
-    $('login').addEventListener('click', function() { login(true).catch(function(err) { showToast(err.message); }); });
-    $('logout').addEventListener('click', logout);
-    $('password').addEventListener('keydown', function(event) {
-      if (event.key === 'Enter') login(true).catch(function(err) { showToast(err.message); });
-    });
     $('refresh').addEventListener('click', function() { refresh().then(function() { showToast(t('refreshed')); }).catch(function(err) { showToast(err.message); }); });
     $('refresh-tools').addEventListener('click', function() { refreshTools().then(renderCliManager).catch(function(err) { showToast(err.message); }); });
     $('tenant').addEventListener('change', function() { updateProfileOptions(); refreshTools().then(renderCliManager).catch(function() {}); });
     $('workspace').addEventListener('input', updateContextLabels);
     $('profile').addEventListener('input', function() { updateContextLabels(); refreshTools().then(renderCliManager).catch(function() {}); });
-    $('connect-terminal').addEventListener('click', connectTerminal);
-    $('disconnect-terminal').addEventListener('click', disconnectTerminal);
-    $('clear-terminal').addEventListener('click', function() { if (state.term) state.term.clear(); });
-    $('username-new').addEventListener('input', function() { syncUserDefaults(false); });
-    $('save-user').addEventListener('click', function() { saveUser().catch(function(err) { showToast(err.message); }); });
-    $('file-refresh').addEventListener('click', function() { refreshFiles().catch(function(err) { showToast(err.message); }); });
-    $('file-parent').addEventListener('click', function() { $('file-path-input').value = parentPath($('file-path-input').value); refreshFiles().catch(function(err) { showToast(err.message); }); });
-    $('file-tenant').addEventListener('change', function() { refreshFiles().catch(function(err) { showToast(err.message); }); });
-    $('file-space').addEventListener('change', function() { $('file-path-input').value = '/'; refreshFiles().catch(function(err) { showToast(err.message); }); });
+    $('stop-action').addEventListener('click', function() { disconnectActionSocket(); showToast(t('commandStopped')); });
 
-    initTerminal();
+    bindApiIndex();
     applyLanguage();
+    renderActionState();
     refresh().catch(function(err) {
       setMetric('health', 'health-led', 'error');
       setMetric('ready', 'ready-led', 'error');
