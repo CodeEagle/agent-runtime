@@ -148,6 +148,11 @@ func NewPersistentStore(policies map[string]policy.Policy, users []UserRequest, 
 			return nil, err
 		}
 	}
+	if store.pruneOrphanUserPoliciesLocked() {
+		if err := store.saveLocked(); err != nil {
+			return nil, err
+		}
+	}
 	return store, nil
 }
 
@@ -280,6 +285,17 @@ func (s *Store) tokenHasUserLocked(token string) bool {
 		}
 	}
 	return false
+}
+
+func (s *Store) pruneOrphanUserPoliciesLocked() bool {
+	pruned := false
+	for token := range s.policies {
+		if strings.HasPrefix(token, "usr_") && !s.tokenHasUserLocked(token) {
+			delete(s.policies, token)
+			pruned = true
+		}
+	}
+	return pruned
 }
 
 func (s *Store) UpsertToken(req TokenRequest) (TokenSummary, error) {

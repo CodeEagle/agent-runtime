@@ -1,6 +1,8 @@
 package tenants_test
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -162,6 +164,45 @@ func TestStoreDeleteUserKeepsSharedPolicy(t *testing.T) {
 	}
 	if got := store.List(); len(got) != 1 || got[0].ID != "team-shared" {
 		t.Fatalf("expected shared policy to remain, got %#v", got)
+	}
+}
+
+func TestPersistentStorePrunesOrphanGeneratedUserPolicies(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "registry.json")
+	raw := []byte(`{
+  "tokens": [
+    {
+      "token": "usr_orphan",
+      "subject": "tenant-user:orphan",
+      "tenant": "orphan",
+      "role": "tenant",
+      "allowed_workspaces": ["repo-*"],
+      "allowed_credential_profiles": ["team-default"],
+      "allow_terminal": true
+    },
+    {
+      "token": "service-token",
+      "subject": "service:kept",
+      "tenant": "service-tenant",
+      "role": "tenant",
+      "allowed_workspaces": ["repo-*"],
+      "allowed_credential_profiles": ["team-default"],
+      "allow_terminal": true
+    }
+  ],
+  "users": []
+}`)
+	if err := os.WriteFile(path, raw, 0o600); err != nil {
+		t.Fatalf("write registry: %v", err)
+	}
+
+	store, err := tenants.NewPersistentStore(nil, nil, path)
+	if err != nil {
+		t.Fatalf("load store: %v", err)
+	}
+	got := store.List()
+	if len(got) != 1 || got[0].ID != "service-tenant" {
+		t.Fatalf("expected only service token tenant to remain, got %#v", got)
 	}
 }
 
