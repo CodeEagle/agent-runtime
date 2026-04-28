@@ -1131,9 +1131,10 @@ const webUIHTML = `<!doctype html>
       }
       container.innerHTML = state.tenants.map(function(tenant) {
         return '<article class="tenant-card">' +
-          '<div class="tenant-card-head"><span>' + escapeHTML(tenant.id) + '</span><span class="badge ' + (tenant.allow_terminal ? 'ok' : 'warn') + '">' + escapeHTML(tenant.allow_terminal ? t('terminalAllowed') : t('terminalBlocked')) + '</span></div>' +
+          '<div class="tenant-card-head"><span>' + escapeHTML(tenant.id) + '</span></div>' +
           '<div class="kv">' +
             '<div><strong>' + escapeHTML(t('subjects')) + '</strong><span>' + escapeHTML(join(tenant.subjects)) + '</span></div>' +
+            '<div><strong>' + escapeHTML(t('terminalAccess')) + '</strong><span>' + escapeHTML(tenant.allow_terminal ? t('terminalAllowed') : t('terminalBlocked')) + '</span></div>' +
             '<div><strong>' + escapeHTML(t('tools')) + '</strong><span>' + escapeHTML(join(tenant.allowed_tools)) + '</span></div>' +
             '<div><strong>' + escapeHTML(t('workspaces')) + '</strong><span>' + escapeHTML(join(tenant.workspace_patterns)) + '</span></div>' +
             '<div><strong>' + escapeHTML(t('profiles')) + '</strong><span>' + escapeHTML(join(tenant.credential_profiles)) + '</span></div>' +
@@ -1166,6 +1167,7 @@ const webUIHTML = `<!doctype html>
           '<div class="kv">' +
             '<div><strong>' + escapeHTML(t('subject')) + '</strong><span>' + escapeHTML(item.subject) + '</span></div>' +
             '<div><strong>' + escapeHTML(t('tenant')) + '</strong><span>' + escapeHTML(item.tenant) + '</span></div>' +
+            '<div><strong>' + escapeHTML(t('terminalAccess')) + '</strong><span>' + escapeHTML(item.allow_terminal ? t('terminalAllowed') : t('terminalBlocked')) + '</span></div>' +
             '<div><strong>' + escapeHTML(t('tools')) + '</strong><span>' + escapeHTML(join(item.allowed_tools)) + '</span></div>' +
             '<div><strong>' + escapeHTML(t('profiles')) + '</strong><span>' + escapeHTML(join(item.allowed_credential_profiles)) + '</span></div>' +
           '</div>' +

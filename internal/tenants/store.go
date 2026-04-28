@@ -261,13 +261,25 @@ func (s *Store) DeleteUser(id string) error {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	for username := range s.users {
+	for username, user := range s.users {
 		if userID(username) == id {
 			delete(s.users, username)
+			if !s.tokenHasUserLocked(user.Token) {
+				delete(s.policies, user.Token)
+			}
 			return s.saveLocked()
 		}
 	}
 	return fmt.Errorf("user not found")
+}
+
+func (s *Store) tokenHasUserLocked(token string) bool {
+	for _, user := range s.users {
+		if user.Token == token {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Store) UpsertToken(req TokenRequest) (TokenSummary, error) {

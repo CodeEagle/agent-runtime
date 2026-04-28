@@ -102,6 +102,69 @@ func TestStoreDefaultsNewUserTenantPolicy(t *testing.T) {
 	assertStrings(t, p.AllowedCredentialProfiles, []string{"team-default"})
 }
 
+func TestStoreDeleteUserRemovesOwnedPolicy(t *testing.T) {
+	store, err := tenants.NewStoreWithUsers(nil, []tenants.UserRequest{
+		{
+			Username:                  "Team B",
+			Password:                  "secret",
+			TenantID:                  "team-b",
+			SubjectID:                 "tenant-user:team-b",
+			AllowedTools:              []string{"codex"},
+			AllowedWorkspaces:         []string{"repo-*"},
+			AllowedCredentialProfiles: []string{"team-default"},
+			AllowTerminal:             true,
+		},
+	})
+	if err != nil {
+		t.Fatalf("create store: %v", err)
+	}
+	users := store.ListUsers()
+	if len(users) != 1 {
+		t.Fatalf("expected one user, got %#v", users)
+	}
+	if got := store.List(); len(got) != 1 || got[0].ID != "team-b" || !got[0].AllowTerminal {
+		t.Fatalf("expected team-b tenant before delete, got %#v", got)
+	}
+
+	if err := store.DeleteUser(users[0].ID); err != nil {
+		t.Fatalf("delete user: %v", err)
+	}
+	if got := store.ListUsers(); len(got) != 0 {
+		t.Fatalf("expected no users after delete, got %#v", got)
+	}
+	if got := store.List(); len(got) != 0 {
+		t.Fatalf("expected deleted user's tenant policy to be removed, got %#v", got)
+	}
+}
+
+func TestStoreDeleteUserKeepsSharedPolicy(t *testing.T) {
+	store, err := tenants.NewStoreWithUsers(map[string]policy.Policy{
+		"shared-token": {
+			SubjectID:     "tenant-user:shared",
+			TenantID:      "team-shared",
+			Role:          "tenant",
+			AllowTerminal: true,
+		},
+	}, []tenants.UserRequest{
+		{Username: "one", Password: "secret", Token: "shared-token"},
+		{Username: "two", Password: "secret", Token: "shared-token"},
+	})
+	if err != nil {
+		t.Fatalf("create store: %v", err)
+	}
+	users := store.ListUsers()
+	if len(users) != 2 {
+		t.Fatalf("expected two users, got %#v", users)
+	}
+
+	if err := store.DeleteUser(users[0].ID); err != nil {
+		t.Fatalf("delete user: %v", err)
+	}
+	if got := store.List(); len(got) != 1 || got[0].ID != "team-shared" {
+		t.Fatalf("expected shared policy to remain, got %#v", got)
+	}
+}
+
 func assertStrings(t *testing.T, got []string, want []string) {
 	t.Helper()
 	if len(got) != len(want) {
