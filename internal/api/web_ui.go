@@ -235,6 +235,7 @@ const webUIHTML = `<!doctype html>
     .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     .tenant-card, .user-card { padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: rgba(7, 12, 18, 0.72); }
     .tenant-card-head, .user-card-head { display: flex; justify-content: space-between; gap: 10px; align-items: center; margin-bottom: 10px; font-weight: 850; }
+    .tenant-card-actions, .user-card-actions { margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap; }
     .kv { display: grid; gap: 8px; color: var(--muted); font-size: 12px; }
     .kv div { display: grid; grid-template-columns: 118px minmax(0, 1fr); gap: 8px; }
     .kv strong { color: var(--faint); font-size: 11px; font-weight: 850; text-transform: uppercase; }
@@ -525,6 +526,7 @@ const webUIHTML = `<!doctype html>
         profiles: '凭据配置',
         tokenCount: '凭据数',
         dataFolders: '数据目录',
+        browseFiles: '打开文件',
         fileExplorer: '文件浏览器',
         fileExplorerDesc: 'admin 可切换全部租户，普通租户只能访问自己的目录。',
         folder: '目录',
@@ -600,6 +602,7 @@ const webUIHTML = `<!doctype html>
         profiles: 'Profiles',
         tokenCount: 'Credential Count',
         dataFolders: 'Data Folders',
+        browseFiles: 'Open Files',
         fileExplorer: 'File Explorer',
         fileExplorerDesc: 'Admins can switch tenants. Tenant users can only access their own folders.',
         folder: 'Folder',
@@ -641,7 +644,8 @@ const webUIHTML = `<!doctype html>
       statusKey: 'disconnected',
       term: null,
       pendingCommand: '',
-      installPollTimer: null
+      installPollTimer: null,
+      userDefaults: { tenant: '', subject: '' }
     };
     const usernameInput = document.getElementById('username');
     const passwordInput = document.getElementById('password');
@@ -666,6 +670,28 @@ const webUIHTML = `<!doctype html>
     }
     function join(values) { return values && values.length ? values.join(', ') : '-'; }
     function splitCSV(value) { return String(value || '').split(',').map(function(item) { return item.trim(); }).filter(Boolean); }
+    function slugFromUsername(value) {
+      const slug = String(value || '').toLowerCase().trim()
+        .replace(/[^a-z0-9._-]+/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^[-._]+|[-._]+$/g, '');
+      return slug || 'tenant';
+    }
+    function syncUserDefaults(force) {
+      const username = $('username-new').value.trim();
+      const tenant = slugFromUsername(username);
+      const subject = 'tenant-user:' + tenant;
+      if (force || !$('tenant-new').value.trim() || $('tenant-new').value === state.userDefaults.tenant) {
+        $('tenant-new').value = username ? tenant : '';
+      }
+      if (force || !$('subject-new').value.trim() || $('subject-new').value === state.userDefaults.subject) {
+        $('subject-new').value = username ? subject : '';
+      }
+      state.userDefaults = {
+        tenant: username ? tenant : '',
+        subject: username ? subject : ''
+      };
+    }
     function authHeaders() {
       return state.sessionToken ? { Authorization: 'Bearer ' + state.sessionToken } : {};
     }
@@ -910,6 +936,7 @@ const webUIHTML = `<!doctype html>
       const tenantSelect = $('tenant');
       const fileTenantSelect = $('file-tenant');
       const currentTenant = tenantSelect.value;
+      const currentFileTenant = fileTenantSelect.value;
       const tenantOptions = state.tenants.map(function(tenant) {
         return '<option value="' + escapeHTML(tenant.id) + '">' + escapeHTML(tenant.id) + '</option>';
       }).join('');
@@ -917,6 +944,7 @@ const webUIHTML = `<!doctype html>
       fileTenantSelect.innerHTML = tenantOptions;
       if (currentTenant) tenantSelect.value = currentTenant;
       if (!tenantSelect.value && state.tenants[0]) tenantSelect.value = state.tenants[0].id;
+      if (currentFileTenant) fileTenantSelect.value = currentFileTenant;
       if (!fileTenantSelect.value && tenantSelect.value) fileTenantSelect.value = tenantSelect.value;
       updateProfileOptions();
     }
@@ -1112,8 +1140,17 @@ const webUIHTML = `<!doctype html>
             '<div><strong>' + escapeHTML(t('tokenCount')) + '</strong><span>' + escapeHTML(tenant.token_count || 0) + '</span></div>' +
             '<div><strong>' + escapeHTML(t('dataFolders')) + '</strong><span class="mono">tenants/' + escapeHTML(tenant.id) + '/workspaces<br>tenants/' + escapeHTML(tenant.id) + '/homes</span></div>' +
           '</div>' +
+          '<div class="tenant-card-actions"><button class="ghost" type="button" data-browse-tenant="' + escapeHTML(tenant.id) + '">' + escapeHTML(t('browseFiles')) + '</button></div>' +
         '</article>';
       }).join('');
+      container.querySelectorAll('[data-browse-tenant]').forEach(function(button) {
+        button.addEventListener('click', function() {
+          $('file-tenant').value = button.dataset.browseTenant;
+          $('file-space').value = 'workspaces';
+          $('file-path-input').value = '/';
+          refreshFiles().catch(function(err) { showToast(err.message); });
+        });
+      });
     }
 
     function renderUsers() {
@@ -1132,9 +1169,17 @@ const webUIHTML = `<!doctype html>
             '<div><strong>' + escapeHTML(t('tools')) + '</strong><span>' + escapeHTML(join(item.allowed_tools)) + '</span></div>' +
             '<div><strong>' + escapeHTML(t('profiles')) + '</strong><span>' + escapeHTML(join(item.allowed_credential_profiles)) + '</span></div>' +
           '</div>' +
-          '<div style="margin-top:10px"><button class="danger" type="button" data-delete-user="' + escapeHTML(item.id) + '">' + escapeHTML(t('delete')) + '</button></div>' +
+          '<div class="user-card-actions"><button class="ghost" type="button" data-browse-tenant="' + escapeHTML(item.tenant) + '">' + escapeHTML(t('browseFiles')) + '</button><button class="danger" type="button" data-delete-user="' + escapeHTML(item.id) + '">' + escapeHTML(t('delete')) + '</button></div>' +
         '</article>';
       }).join('');
+      container.querySelectorAll('[data-browse-tenant]').forEach(function(button) {
+        button.addEventListener('click', function() {
+          $('file-tenant').value = button.dataset.browseTenant;
+          $('file-space').value = 'workspaces';
+          $('file-path-input').value = '/';
+          refreshFiles().catch(function(err) { showToast(err.message); });
+        });
+      });
       container.querySelectorAll('[data-delete-user]').forEach(function(button) {
         button.addEventListener('click', async function() {
           await api('/api/users/' + encodeURIComponent(button.dataset.deleteUser), { method: 'DELETE' });
@@ -1145,6 +1190,7 @@ const webUIHTML = `<!doctype html>
     }
 
     async function saveUser() {
+      syncUserDefaults(false);
       const payload = {
         username: $('username-new').value.trim(),
         password: $('password-new').value,
@@ -1157,10 +1203,16 @@ const webUIHTML = `<!doctype html>
         allow_terminal: $('terminal-new').value === 'true',
         max_job_seconds: Number($('duration-new').value || 0)
       };
-      await api('/api/users', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      const user = await api('/api/users', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       $('password-new').value = '';
       showToast(t('userSaved'));
       await refreshSecure();
+      if (user && user.tenant) {
+        $('file-tenant').value = user.tenant;
+        $('file-space').value = 'workspaces';
+        $('file-path-input').value = '/';
+        await refreshFiles().catch(function(err) { showToast(err.message); });
+      }
     }
 
     async function refreshFiles() {
@@ -1266,6 +1318,7 @@ const webUIHTML = `<!doctype html>
     $('connect-terminal').addEventListener('click', connectTerminal);
     $('disconnect-terminal').addEventListener('click', disconnectTerminal);
     $('clear-terminal').addEventListener('click', function() { if (state.term) state.term.clear(); });
+    $('username-new').addEventListener('input', function() { syncUserDefaults(false); });
     $('save-user').addEventListener('click', function() { saveUser().catch(function(err) { showToast(err.message); }); });
     $('file-refresh').addEventListener('click', function() { refreshFiles().catch(function(err) { showToast(err.message); }); });
     $('file-parent').addEventListener('click', function() { $('file-path-input').value = parentPath($('file-path-input').value); refreshFiles().catch(function(err) { showToast(err.message); }); });

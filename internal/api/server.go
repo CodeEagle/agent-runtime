@@ -287,6 +287,12 @@ func (s *server) upsertUser(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	if s.files.Configured() {
+		if err := s.files.EnsureTenant(user.TenantID, user.AllowedCredentialProfiles, user.AllowedWorkspaces); err != nil {
+			writeError(w, http.StatusInternalServerError, fmt.Sprintf("create tenant folders: %v", err))
+			return
+		}
+	}
 	writeJSON(w, http.StatusCreated, user)
 }
 

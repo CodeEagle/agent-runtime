@@ -333,6 +333,48 @@ func TestServerListsFilesWithinTenantBoundary(t *testing.T) {
 	}
 }
 
+func TestServerCreatesUserAndTenantFolders(t *testing.T) {
+	root := t.TempDir()
+	tenantStore := tenants.NewStore(map[string]policy.Policy{
+		"admin-token": {
+			SubjectID: "admin:test",
+			TenantID:  "admin",
+			Role:      "admin",
+		},
+	})
+	handler := api.NewServer(api.Options{
+		Tenants: tenantStore,
+		Files:   files.NewExplorer(root),
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/users", strings.NewReader(`{"username":"Team B","password":"secret"}`))
+	req.Header.Set("Authorization", "Bearer admin-token")
+	res := httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+	if res.Code != http.StatusCreated {
+		t.Fatalf("expected status 201, got %d: %s", res.Code, res.Body.String())
+	}
+	var body tenants.UserSummary
+	if err := json.Unmarshal(res.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode created user: %v", err)
+	}
+	if body.TenantID != "team-b" || body.SubjectID != "tenant-user:team-b" {
+		t.Fatalf("expected derived tenant policy, got %#v", body)
+	}
+	for _, path := range []string{
+		filepath.Join(root, "team-b", "homes", "team-default"),
+		filepath.Join(root, "team-b", "workspaces", "repo-main"),
+	} {
+		info, err := os.Stat(path)
+		if err != nil {
+			t.Fatalf("expected folder %s: %v", path, err)
+		}
+		if !info.IsDir() {
+			t.Fatalf("expected %s to be a directory", path)
+		}
+	}
+}
+
 func TestServerRejectsTerminalWithoutToken(t *testing.T) {
 	handler := newTestServer(t)
 

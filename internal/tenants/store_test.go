@@ -74,6 +74,34 @@ func TestStoreAuthenticatesUsers(t *testing.T) {
 	}
 }
 
+func TestStoreDefaultsNewUserTenantPolicy(t *testing.T) {
+	store, err := tenants.NewStoreWithUsers(nil, []tenants.UserRequest{
+		{Username: "Team B", Password: "secret"},
+	})
+	if err != nil {
+		t.Fatalf("create store: %v", err)
+	}
+
+	token, p, ok := store.AuthenticateUser("team b", "secret")
+	if !ok {
+		t.Fatal("expected user authentication to succeed")
+	}
+	if token == "" {
+		t.Fatal("expected generated user token")
+	}
+	if p.TenantID != "team-b" {
+		t.Fatalf("expected tenant to default from username, got %q", p.TenantID)
+	}
+	if p.SubjectID != "tenant-user:team-b" {
+		t.Fatalf("expected subject to default from tenant, got %q", p.SubjectID)
+	}
+	if p.Role != "tenant" {
+		t.Fatalf("expected tenant role, got %q", p.Role)
+	}
+	assertStrings(t, p.AllowedWorkspaces, []string{"repo-*"})
+	assertStrings(t, p.AllowedCredentialProfiles, []string{"team-default"})
+}
+
 func assertStrings(t *testing.T, got []string, want []string) {
 	t.Helper()
 	if len(got) != len(want) {

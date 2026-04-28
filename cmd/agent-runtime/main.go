@@ -39,6 +39,11 @@ func main() {
 	workspaceResolver := workspaces.NewResolver(cfg.Storage.TenantsDir)
 	credentialResolver := credentials.NewResolver(cfg.Storage.TenantsDir)
 	fileExplorer := files.NewExplorer(cfg.Storage.TenantsDir)
+	for _, tenant := range tenantStore.List() {
+		if err := fileExplorer.EnsureTenant(tenant.ID, tenant.CredentialProfiles, tenant.WorkspacePatterns); err != nil {
+			log.Fatalf("bootstrap tenant %s folders: %v", tenant.ID, err)
+		}
+	}
 	manager := jobs.NewManager(jobs.Options{
 		Policies: tenantStore,
 		Tools:    toolRegistry,

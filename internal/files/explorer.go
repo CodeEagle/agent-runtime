@@ -45,6 +45,43 @@ func NewExplorer(tenantsDir string) Explorer {
 	return Explorer{tenantsDir: tenantsDir}
 }
 
+func (e Explorer) Configured() bool {
+	return strings.TrimSpace(e.tenantsDir) != ""
+}
+
+func (e Explorer) EnsureTenant(tenantID string, credentialProfiles []string, workspacePatterns []string) error {
+	if !safeID(tenantID) {
+		return fmt.Errorf("unsafe tenant id %q", tenantID)
+	}
+	if !e.Configured() {
+		return fmt.Errorf("tenants directory is not configured")
+	}
+	root, err := filepath.Abs(e.tenantsDir)
+	if err != nil {
+		return fmt.Errorf("resolve tenants dir: %w", err)
+	}
+	tenantRoot := filepath.Join(root, tenantID)
+	homesRoot := filepath.Join(tenantRoot, "homes")
+	workspacesRoot := filepath.Join(tenantRoot, "workspaces")
+	if err := os.MkdirAll(homesRoot, 0o755); err != nil {
+		return fmt.Errorf("create tenant homes root: %w", err)
+	}
+	if err := os.MkdirAll(workspacesRoot, 0o755); err != nil {
+		return fmt.Errorf("create tenant workspaces root: %w", err)
+	}
+	for _, profileID := range concreteIDs(credentialProfiles, "team-default") {
+		if err := os.MkdirAll(filepath.Join(homesRoot, profileID), 0o700); err != nil {
+			return fmt.Errorf("create credential profile %q: %w", profileID, err)
+		}
+	}
+	for _, workspaceID := range workspaceIDs(workspacePatterns) {
+		if err := os.MkdirAll(filepath.Join(workspacesRoot, workspaceID), 0o755); err != nil {
+			return fmt.Errorf("create workspace %q: %w", workspaceID, err)
+		}
+	}
+	return nil
+}
+
 func (e Explorer) List(tenantID string, space string, requestedPath string) (Listing, error) {
 	if !safeID(tenantID) {
 		return Listing{}, fmt.Errorf("unsafe tenant id %q", tenantID)
@@ -227,4 +264,52 @@ func cleanRelativePath(path string) (string, error) {
 func safeID(id string) bool {
 	id = strings.TrimSpace(id)
 	return id != "" && id != "." && id != ".." && !strings.ContainsAny(id, `/\`)
+}
+
+func concreteIDs(values []string, fallback string) []string {
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if concreteID(value) {
+			out = appendUnique(out, value)
+		}
+	}
+	if len(out) == 0 {
+		out = append(out, fallback)
+	}
+	return out
+}
+
+func workspaceIDs(patterns []string) []string {
+	out := make([]string, 0, len(patterns))
+	for _, pattern := range patterns {
+		pattern = strings.TrimSpace(pattern)
+		if concreteID(pattern) {
+			out = appendUnique(out, pattern)
+			continue
+		}
+		if strings.HasSuffix(pattern, "*") && !strings.ContainsAny(strings.TrimSuffix(pattern, "*"), "*?[]") {
+			candidate := strings.TrimSuffix(pattern, "*") + "main"
+			if concreteID(candidate) {
+				out = appendUnique(out, candidate)
+			}
+		}
+	}
+	if len(out) == 0 {
+		out = append(out, "repo-main")
+	}
+	return out
+}
+
+func concreteID(id string) bool {
+	return safeID(id) && !strings.ContainsAny(id, "*?[]")
+}
+
+func appendUnique(values []string, value string) []string {
+	for _, existing := range values {
+		if existing == value {
+			return values
+		}
+	}
+	return append(values, value)
 }

@@ -380,6 +380,21 @@ func (s *Store) upsertUserLocked(req UserRequest) (storedUser, error) {
 			req.MaxJobSeconds = int(existingPolicy.MaxJobDuration / time.Second)
 		}
 	}
+	if req.TenantID == "" {
+		req.TenantID = defaultTenantID(req.Username)
+	}
+	if req.SubjectID == "" {
+		req.SubjectID = "tenant-user:" + req.TenantID
+	}
+	if req.Role == "" {
+		req.Role = "tenant"
+	}
+	if len(req.AllowedWorkspaces) == 0 {
+		req.AllowedWorkspaces = []string{"repo-*"}
+	}
+	if len(req.AllowedCredentialProfiles) == 0 {
+		req.AllowedCredentialProfiles = []string{"team-default"}
+	}
 
 	tokenReq := TokenRequest{
 		Token:                     req.Token,
@@ -581,6 +596,35 @@ func roleOrDefault(role string) string {
 
 func normalizeUsername(username string) string {
 	return strings.ToLower(strings.TrimSpace(username))
+}
+
+func defaultTenantID(username string) string {
+	username = normalizeUsername(username)
+	var builder strings.Builder
+	lastDash := false
+	for _, char := range username {
+		switch {
+		case char >= 'a' && char <= 'z', char >= '0' && char <= '9', char == '.', char == '_':
+			builder.WriteRune(char)
+			lastDash = false
+		case char == '-':
+			if !lastDash {
+				builder.WriteRune('-')
+				lastDash = true
+			}
+		default:
+			if !lastDash {
+				builder.WriteRune('-')
+				lastDash = true
+			}
+		}
+	}
+	slug := strings.Trim(builder.String(), "-._")
+	if slug != "" {
+		return slug
+	}
+	sum := sha256.Sum256([]byte(username))
+	return "tenant-" + hex.EncodeToString(sum[:])[:8]
 }
 
 func randomToken() (string, error) {
