@@ -51,6 +51,18 @@
       "credential_subdir": ".qoder"
     }
   ],
+  "users": [
+    {
+      "username": "admin",
+      "password": "admin",
+      "token": "dev-token"
+    },
+    {
+      "username": "team-a",
+      "password": "team-a",
+      "token": "team-a-token"
+    }
+  ],
   "tokens": [
     {
       "token": "dev-token",

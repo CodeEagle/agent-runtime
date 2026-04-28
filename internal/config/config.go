@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"agent-runtime/internal/policy"
+	"agent-runtime/internal/tenants"
 	"agent-runtime/internal/tools"
 )
 
@@ -16,6 +17,7 @@ type Config struct {
 	Storage StorageConfig `json:"storage"`
 	Tools   []tools.Tool  `json:"tools"`
 	Tokens  []TokenConfig `json:"tokens"`
+	Users   []UserConfig  `json:"users"`
 }
 
 type ServerConfig struct {
@@ -39,6 +41,20 @@ type TokenConfig struct {
 	AllowTerminal             bool          `json:"allow_terminal"`
 	MaxJobSeconds             int           `json:"max_job_seconds"`
 	Policy                    policy.Policy `json:"-"`
+}
+
+type UserConfig struct {
+	Username                  string   `json:"username"`
+	Password                  string   `json:"password"`
+	Token                     string   `json:"token"`
+	SubjectID                 string   `json:"subject"`
+	TenantID                  string   `json:"tenant"`
+	Role                      string   `json:"role"`
+	AllowedTools              []string `json:"allowed_tools"`
+	AllowedWorkspaces         []string `json:"allowed_workspaces"`
+	AllowedCredentialProfiles []string `json:"allowed_credential_profiles"`
+	AllowTerminal             bool     `json:"allow_terminal"`
+	MaxJobSeconds             int      `json:"max_job_seconds"`
 }
 
 func Default() Config {
@@ -112,6 +128,26 @@ func (cfg Config) PolicyStore() map[string]policy.Policy {
 	out := make(map[string]policy.Policy, len(cfg.Tokens))
 	for _, token := range cfg.Tokens {
 		out[token.Token] = token.Policy
+	}
+	return out
+}
+
+func (cfg Config) UserStore() []tenants.UserRequest {
+	out := make([]tenants.UserRequest, 0, len(cfg.Users))
+	for _, user := range cfg.Users {
+		out = append(out, tenants.UserRequest{
+			Username:                  user.Username,
+			Password:                  user.Password,
+			Token:                     user.Token,
+			SubjectID:                 user.SubjectID,
+			TenantID:                  user.TenantID,
+			Role:                      user.Role,
+			AllowedTools:              append([]string(nil), user.AllowedTools...),
+			AllowedWorkspaces:         append([]string(nil), user.AllowedWorkspaces...),
+			AllowedCredentialProfiles: append([]string(nil), user.AllowedCredentialProfiles...),
+			AllowTerminal:             user.AllowTerminal,
+			MaxJobSeconds:             user.MaxJobSeconds,
+		})
 	}
 	return out
 }

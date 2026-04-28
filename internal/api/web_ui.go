@@ -163,9 +163,10 @@ const webUIHTML = `<!doctype html>
     }
     .page-title h1 { margin: 0; font-size: 20px; line-height: 1.1; }
     .page-title p { margin: 5px 0 0; color: var(--muted); font-size: 13px; }
-    .top-actions { display: grid; grid-template-columns: 1fr 82px 92px 120px; gap: 8px; align-items: center; }
-    .token-field { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 8px; align-items: center; }
-    .token-field span { color: var(--muted); font-size: 12px; font-weight: 850; text-transform: uppercase; }
+    .top-actions { display: grid; grid-template-columns: minmax(260px, 1fr) 78px 78px 92px 120px; gap: 8px; align-items: center; }
+    .login-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .login-field { display: grid; grid-template-columns: 82px minmax(0, 1fr); gap: 8px; align-items: center; }
+    .login-field span { color: var(--muted); font-size: 12px; font-weight: 850; text-transform: uppercase; }
     .lang-toggle { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; border: 1px solid var(--line); border-radius: 8px; background: rgba(3, 7, 12, 0.72); }
     .lang-toggle button { min-height: 28px; border: 0; background: transparent; color: var(--muted); font-size: 12px; }
     .lang-toggle button.active { background: rgba(37, 215, 207, 0.15); color: var(--cyan); }
@@ -208,8 +209,6 @@ const webUIHTML = `<!doctype html>
     .xterm-frame { height: 100%; overflow: hidden; border: 1px solid #172332; border-radius: 8px; background: #05070a; box-shadow: inset 0 0 42px rgba(37, 215, 207, 0.05); }
     #terminal-container { height: 100%; width: 100%; padding: 8px; }
     .xterm { height: 100%; padding: 2px; }
-    .manager-strip { padding: 12px 12px 0; color: var(--cyan); font-size: 14px; font-weight: 850; }
-    .manager-strip span { min-height: 38px; display: inline-flex; align-items: center; border-bottom: 2px solid var(--cyan); }
     .manager-body { padding: 12px; display: grid; gap: 10px; }
     .cli-card {
       min-height: 116px;
@@ -231,21 +230,26 @@ const webUIHTML = `<!doctype html>
     .cli-actions { display: grid; gap: 8px; min-width: 118px; }
     .cli-actions a { min-height: 36px; display: grid; place-items: center; padding: 8px 10px; border: 1px solid var(--line-2); border-radius: 8px; background: rgba(6, 10, 15, 0.7); color: var(--muted); font-size: 13px; font-weight: 760; text-decoration: none; }
     .cli-actions a:hover { border-color: rgba(37, 215, 207, 0.72); }
-    .tenant-layout { display: grid; grid-template-columns: 380px minmax(0, 1fr); gap: 16px; align-items: start; }
+    .tenant-layout { display: grid; grid-template-columns: 1fr; gap: 16px; align-items: start; }
     .form-stack, .tenant-list, .file-body { display: grid; gap: 10px; padding: 14px; }
     .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-    .tenant-card, .token-card { padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: rgba(7, 12, 18, 0.72); }
-    .tenant-card-head, .token-card-head { display: flex; justify-content: space-between; gap: 10px; align-items: center; margin-bottom: 10px; font-weight: 850; }
+    .tenant-card, .user-card { padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: rgba(7, 12, 18, 0.72); }
+    .tenant-card-head, .user-card-head { display: flex; justify-content: space-between; gap: 10px; align-items: center; margin-bottom: 10px; font-weight: 850; }
     .kv { display: grid; gap: 8px; color: var(--muted); font-size: 12px; }
     .kv div { display: grid; grid-template-columns: 118px minmax(0, 1fr); gap: 8px; }
     .kv strong { color: var(--faint); font-size: 11px; font-weight: 850; text-transform: uppercase; }
     .file-controls { display: grid; grid-template-columns: 150px 150px minmax(180px, 1fr) auto auto; gap: 10px; align-items: end; }
     .file-path { padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px; background: rgba(3, 7, 12, 0.78); color: var(--muted); font-family: var(--mono); font-size: 12px; overflow-wrap: anywhere; }
-    .file-list { display: grid; gap: 6px; }
-    .file-row { display: grid; grid-template-columns: minmax(0, 1fr) 90px 170px; gap: 10px; align-items: center; min-height: 38px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: rgba(9, 15, 23, 0.7); }
+    .file-browser { height: clamp(420px, calc(100vh - 430px), 680px); min-height: 420px; display: grid; grid-template-columns: minmax(240px, 42%) minmax(0, 1fr); overflow: hidden; border: 1px solid var(--line); border-radius: 8px; background: rgba(4, 8, 13, 0.72); }
+    .file-list { overflow: auto; border-right: 1px solid var(--line); }
+    .file-row { display: grid; grid-template-columns: minmax(0, 1fr) 86px; gap: 10px; align-items: center; min-height: 36px; padding: 8px 10px; border-bottom: 1px solid rgba(30, 43, 57, 0.62); background: transparent; cursor: pointer; }
+    .file-row:hover, .file-row.active { background: rgba(37, 215, 207, 0.08); }
     .file-name { display: flex; gap: 8px; align-items: center; min-width: 0; }
-    .file-name button { min-height: 26px; padding: 0; border: 0; background: transparent; color: var(--text); text-align: left; font-weight: 760; overflow-wrap: anywhere; }
+    .file-name button { min-height: 26px; padding: 0; border: 0; background: transparent; color: var(--text); text-align: left; font-weight: 760; overflow-wrap: anywhere; cursor: pointer; }
     .file-meta { color: var(--faint); font-family: var(--mono); font-size: 11px; }
+    .file-viewer { min-width: 0; display: flex; flex-direction: column; }
+    .file-viewbar { min-height: 38px; padding: 10px 12px; border-bottom: 1px solid var(--line); color: var(--muted); font-family: var(--mono); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .file-preview { flex: 1; margin: 0; padding: 12px; overflow: auto; white-space: pre; color: #d9e8f8; font-family: var(--mono); font-size: 12px; line-height: 1.45; }
     .empty { padding: 18px; color: var(--muted); border: 1px dashed var(--line-2); border-radius: 8px; background: rgba(255, 255, 255, 0.025); }
     .hidden { display: none !important; }
     .toast { position: fixed; right: 18px; bottom: 18px; z-index: 10; display: none; max-width: 420px; padding: 12px 14px; border: 1px solid rgba(37, 215, 207, 0.42); border-radius: 8px; background: rgba(5, 10, 16, 0.96); color: var(--text); box-shadow: 0 20px 70px rgba(0, 0, 0, 0.45); }
@@ -259,9 +263,11 @@ const webUIHTML = `<!doctype html>
     }
     @media (max-width: 760px) {
       .workspace { padding: 10px; }
-      .top-actions, .status-grid, .context-bar, .field-row, .file-controls { grid-template-columns: 1fr; }
-      .token-field { grid-template-columns: 1fr; }
+      .top-actions, .status-grid, .context-bar, .field-row, .file-controls, .login-fields, .file-browser { grid-template-columns: 1fr; }
+      .login-field { grid-template-columns: 1fr; }
       .terminal-body { height: 460px; min-height: 460px; }
+      .file-browser { height: 620px; }
+      .file-list { border-right: 0; border-bottom: 1px solid var(--line); }
       .cli-card, .file-row { grid-template-columns: 1fr; }
     }
   </style>
@@ -297,11 +303,18 @@ const webUIHTML = `<!doctype html>
           <p id="page-subtitle">登录认证、安装 CLI、检查租户隔离都从这里开始。</p>
         </div>
         <div class="top-actions">
-          <div class="token-field">
-            <span data-i18n="token">Token</span>
-            <input id="token" type="password" autocomplete="off" placeholder="dev-token">
+          <div class="login-fields">
+            <div class="login-field">
+              <span data-i18n="username">用户名</span>
+              <input id="username" autocomplete="username" placeholder="admin">
+            </div>
+            <div class="login-field">
+              <span data-i18n="password">密码</span>
+              <input id="password" type="password" autocomplete="current-password" placeholder="admin">
+            </div>
           </div>
           <button class="primary" id="login" type="button" data-i18n="login">登录</button>
+          <button class="ghost" id="logout" type="button" data-i18n="logout">退出</button>
           <button class="ghost" id="refresh" type="button" data-i18n="refresh">刷新</button>
           <div class="lang-toggle" aria-label="Language">
             <button id="lang-zh" type="button" data-lang="zh">中文</button>
@@ -379,7 +392,6 @@ const webUIHTML = `<!doctype html>
                 </div>
                 <button class="ghost" id="refresh-tools" type="button" title="Refresh">↻</button>
               </div>
-              <div class="manager-strip"><span data-i18n="installedClis">Installed CLIs</span></div>
               <div class="manager-body">
                 <div id="installed-panel"></div>
               </div>
@@ -394,31 +406,32 @@ const webUIHTML = `<!doctype html>
                 <div class="panel-title">
                   <span class="nav-icon">TN</span>
                   <div>
-                    <h2 data-i18n="tenantManager">租户管理</h2>
-                    <p data-i18n="tenantManagerDesc">admin 管理全部 token，普通租户只看到自己的边界。</p>
+                    <h2 data-i18n="tenantManager">用户与租户</h2>
+                    <p data-i18n="tenantManagerDesc">admin 管理用户和租户边界，普通用户只看到自己的租户。</p>
                   </div>
                 </div>
               </div>
-              <div class="form-stack hidden" id="admin-token-form">
+              <div class="form-stack hidden" id="admin-user-form">
                 <div class="field-row">
-                  <div><label for="token-new" data-i18n="token">Token</label><input id="token-new" placeholder="new-token"></div>
-                  <div><label for="subject-new" data-i18n="subject">主体</label><input id="subject-new" placeholder="tenant-user:team-b"></div>
+                  <div><label for="username-new" data-i18n="username">用户名</label><input id="username-new" placeholder="team-b"></div>
+                  <div><label for="password-new" data-i18n="password">密码</label><input id="password-new" type="password" autocomplete="new-password" placeholder="••••••••"></div>
                 </div>
                 <div class="field-row">
+                  <div><label for="subject-new" data-i18n="subject">主体</label><input id="subject-new" placeholder="tenant-user:team-b"></div>
                   <div><label for="tenant-new" data-i18n="tenant">租户</label><input id="tenant-new" placeholder="team-b"></div>
+                </div>
+                <div class="field-row">
                   <div><label for="role-new" data-i18n="role">角色</label><select id="role-new"><option value="tenant">tenant</option><option value="admin">admin</option></select></div>
+                  <div><label for="duration-new" data-i18n="maxDuration">最长任务秒数</label><input id="duration-new" type="number" value="900"></div>
                 </div>
                 <div><label for="tools-new" data-i18n="allowedTools">允许工具</label><input id="tools-new" value="codex,claude,gemini,opencode,iflow,kimi,qoder"></div>
                 <div><label for="workspaces-new" data-i18n="allowedWorkspaces">允许工作区</label><input id="workspaces-new" value="repo-*"></div>
                 <div><label for="profiles-new" data-i18n="allowedProfiles">允许凭据配置</label><input id="profiles-new" value="team-default"></div>
-                <div class="field-row">
-                  <div><label for="terminal-new" data-i18n="terminalAccess">终端权限</label><select id="terminal-new"><option value="true">allow</option><option value="false">block</option></select></div>
-                  <div><label for="duration-new" data-i18n="maxDuration">最长任务秒数</label><input id="duration-new" type="number" value="900"></div>
-                </div>
-                <button class="primary" id="save-token" type="button" data-i18n="saveTenantToken">保存租户 Token</button>
+                <div><label for="terminal-new" data-i18n="terminalAccess">终端权限</label><select id="terminal-new"><option value="true">allow</option><option value="false">block</option></select></div>
+                <button class="primary" id="save-user" type="button" data-i18n="saveUser">保存用户</button>
               </div>
               <div class="tenant-list" id="tenant-list"></div>
-              <div class="tenant-list hidden" id="token-list"></div>
+              <div class="tenant-list hidden" id="user-list"></div>
             </section>
 
             <section class="panel">
@@ -440,7 +453,13 @@ const webUIHTML = `<!doctype html>
                   <button class="primary" id="file-refresh" type="button" data-i18n="open">打开</button>
                 </div>
                 <div class="file-path" id="file-abs-path">-</div>
-                <div class="file-list" id="file-list"></div>
+                <div class="file-browser">
+                  <div class="file-list" id="file-list"></div>
+                  <div class="file-viewer">
+                    <div class="file-viewbar" id="file-view-path" data-i18n="noFileSelected">未选择文件</div>
+                    <pre class="file-preview" id="file-preview"></pre>
+                  </div>
+                </div>
               </div>
             </section>
           </div>
@@ -459,8 +478,10 @@ const webUIHTML = `<!doctype html>
         navTerminal: '终端',
         navTenants: '租户',
         session: '会话',
-        token: 'Token',
+        username: '用户名',
+        password: '密码',
         login: '登录',
+        logout: '退出',
         refresh: '刷新',
         health: '健康状态',
         ready: '就绪状态',
@@ -468,7 +489,7 @@ const webUIHTML = `<!doctype html>
         tenants: '租户',
         terminal: '终端',
         terminalSubtitle: '登录认证、安装 CLI、检查租户隔离都从这里开始。',
-        tenantsSubtitle: '管理租户 token、查看数据边界和隔离目录。',
+        tenantsSubtitle: '管理用户、查看租户边界和隔离文件系统。',
         connect: '连接',
         clear: '清屏',
         disconnect: '断开',
@@ -476,7 +497,6 @@ const webUIHTML = `<!doctype html>
         workspace: '工作区',
         credentialProfile: '凭据配置',
         cliManagerDesc: '安装状态来自真实 PATH 探测。',
-        installedClis: 'Installed CLIs',
         installCli: '安装 CLI',
         quickLogin: 'Quick Login',
         verify: '验证',
@@ -485,8 +505,8 @@ const webUIHTML = `<!doctype html>
         notInstalled: '未安装',
         registeredOnly: '仅注册',
         delete: '删除',
-        tenantManager: '租户管理',
-        tenantManagerDesc: 'admin 管理全部 token，普通租户只看到自己的边界。',
+        tenantManager: '用户与租户',
+        tenantManagerDesc: 'admin 管理用户和租户边界，普通用户只看到自己的租户。',
         subject: '主体',
         role: '角色',
         allowedTools: '允许工具',
@@ -494,14 +514,14 @@ const webUIHTML = `<!doctype html>
         allowedProfiles: '允许凭据配置',
         terminalAccess: '终端权限',
         maxDuration: '最长任务秒数',
-        saveTenantToken: '保存租户 Token',
+        saveUser: '保存用户',
         terminalAllowed: '允许终端',
         terminalBlocked: '禁止终端',
         subjects: '主体',
         tools: '工具',
         workspaces: '工作区',
         profiles: '凭据配置',
-        tokenCount: 'Token 数',
+        tokenCount: '凭据数',
         dataFolders: '数据目录',
         fileExplorer: '文件浏览器',
         fileExplorerDesc: 'admin 可切换全部租户，普通租户只能访问自己的目录。',
@@ -510,27 +530,31 @@ const webUIHTML = `<!doctype html>
         up: '上级',
         open: '打开',
         noFiles: '目录为空',
+        noFileSelected: '未选择文件',
         noTenants: '暂无可访问租户',
-        noTokens: '暂无 token',
+        noUsers: '暂无用户',
+        userSaved: '用户已保存',
+        userDeleted: '用户已删除',
         connected: '已连接',
         disconnected: '未连接',
         connecting: '连接中',
         connectionError: '连接错误',
         exited: '已退出',
-        terminalWelcome: 'Agent Runtime 终端已就绪。先登录 token，再连接 shell 或执行 CLI 安装/登录。',
+        terminalWelcome: 'Agent Runtime 终端已就绪。先登录用户，再连接 shell 或执行 CLI 安装/登录。',
         terminalConnecting: '正在连接终端...',
         loginOK: '登录成功',
         refreshed: '状态已刷新',
-        tokenSaved: '租户 token 已保存',
-        tokenDeleted: '租户 token 已删除'
+        loggedOut: '已退出登录'
       },
       en: {
         brandSubtitle: 'CLI control plane',
         navTerminal: 'Terminal',
         navTenants: 'Tenants',
         session: 'Session',
-        token: 'Token',
+        username: 'Username',
+        password: 'Password',
         login: 'Login',
+        logout: 'Logout',
         refresh: 'Refresh',
         health: 'Health',
         ready: 'Ready',
@@ -538,7 +562,7 @@ const webUIHTML = `<!doctype html>
         tenants: 'Tenants',
         terminal: 'Terminal',
         terminalSubtitle: 'Login, CLI installation, and tenant isolation checks start here.',
-        tenantsSubtitle: 'Manage tenant tokens, inspect boundaries, and browse isolated folders.',
+        tenantsSubtitle: 'Manage users, inspect tenant boundaries, and browse isolated filesystems.',
         connect: 'Connect',
         clear: 'Clear',
         disconnect: 'Disconnect',
@@ -546,7 +570,6 @@ const webUIHTML = `<!doctype html>
         workspace: 'Workspace',
         credentialProfile: 'Credential Profile',
         cliManagerDesc: 'Install state is checked against the real PATH.',
-        installedClis: 'Installed CLIs',
         installCli: 'Install CLI',
         quickLogin: 'Quick Login',
         verify: 'Verify',
@@ -555,8 +578,8 @@ const webUIHTML = `<!doctype html>
         notInstalled: 'Not installed',
         registeredOnly: 'Registered only',
         delete: 'Delete',
-        tenantManager: 'Tenant Manager',
-        tenantManagerDesc: 'Admins manage all tokens. Tenants only see their own boundary.',
+        tenantManager: 'Users & Tenants',
+        tenantManagerDesc: 'Admins manage users and tenant boundaries. Users only see their own tenant.',
         subject: 'Subject',
         role: 'Role',
         allowedTools: 'Allowed Tools',
@@ -564,14 +587,14 @@ const webUIHTML = `<!doctype html>
         allowedProfiles: 'Allowed Profiles',
         terminalAccess: 'Terminal Access',
         maxDuration: 'Max Job Seconds',
-        saveTenantToken: 'Save Tenant Token',
+        saveUser: 'Save User',
         terminalAllowed: 'Terminal allowed',
         terminalBlocked: 'Terminal blocked',
         subjects: 'Subjects',
         tools: 'Tools',
         workspaces: 'Workspaces',
         profiles: 'Profiles',
-        tokenCount: 'Token Count',
+        tokenCount: 'Credential Count',
         dataFolders: 'Data Folders',
         fileExplorer: 'File Explorer',
         fileExplorerDesc: 'Admins can switch tenants. Tenant users can only access their own folders.',
@@ -580,19 +603,21 @@ const webUIHTML = `<!doctype html>
         up: 'Up',
         open: 'Open',
         noFiles: 'Folder is empty',
+        noFileSelected: 'No file selected',
         noTenants: 'No accessible tenants',
-        noTokens: 'No tokens',
+        noUsers: 'No users',
+        userSaved: 'User saved',
+        userDeleted: 'User deleted',
         connected: 'Connected',
         disconnected: 'Disconnected',
         connecting: 'Connecting',
         connectionError: 'Connection error',
         exited: 'Exited',
-        terminalWelcome: 'Agent Runtime terminal is ready. Login with a token, then connect a shell or run CLI install/login.',
+        terminalWelcome: 'Agent Runtime terminal is ready. Log in as a user, then connect a shell or run CLI install/login.',
         terminalConnecting: 'Connecting terminal...',
         loginOK: 'Login succeeded',
         refreshed: 'Runtime status refreshed',
-        tokenSaved: 'Tenant token saved',
-        tokenDeleted: 'Tenant token deleted'
+        loggedOut: 'Logged out'
       }
     };
 
@@ -600,21 +625,23 @@ const webUIHTML = `<!doctype html>
     const state = {
       lang: savedLanguage || 'zh',
       view: 'terminal-view',
+      sessionToken: localStorage.getItem('agent-runtime-session-token') || '',
       session: null,
       tools: [],
       tenants: [],
-      tokens: [],
+      users: [],
       ws: null,
       connected: false,
       statusKey: 'disconnected',
       term: null,
       pendingCommand: ''
     };
-    const tokenInput = document.getElementById('token');
-    tokenInput.value = localStorage.getItem('agent-runtime-token') || 'dev-token';
+    const usernameInput = document.getElementById('username');
+    const passwordInput = document.getElementById('password');
+    usernameInput.value = localStorage.getItem('agent-runtime-username') || 'admin';
 
     const installSources = [
-      { label: 'Claude Code', fallback: 'CC', logo: 'https://claude.ai/favicon.ico', tool: 'claude', command: 'curl -fsSL https://claude.ai/install.sh | bash', verify: 'claude --version', login: 'claude', docs: 'https://docs.anthropic.com/en/docs/claude-code/quickstart', provider: 'Anthropic' },
+      { label: 'Claude Code', fallback: 'CC', logo: 'https://claude.ai/favicon.svg', tool: 'claude', command: 'curl -fsSL https://claude.ai/install.sh | bash', verify: 'claude --version', login: 'claude', docs: 'https://docs.anthropic.com/en/docs/claude-code/quickstart', provider: 'Anthropic' },
       { label: 'Codex', fallback: 'CX', logo: 'https://avatars.githubusercontent.com/u/14957082?s=96&v=4', tool: 'codex', command: 'npm install -g @openai/codex', verify: 'codex --version', login: 'codex login', docs: 'https://github.com/openai/codex', provider: 'OpenAI' },
       { label: 'Gemini', fallback: 'GM', logo: 'https://avatars.githubusercontent.com/u/161781182?s=96&v=4', tool: 'gemini', command: 'npm install -g @google/gemini-cli', verify: 'gemini --version', login: 'gemini', docs: 'https://github.com/google-gemini/gemini-cli', provider: 'Google' },
       { label: 'OpenCode', fallback: 'OC', logo: 'https://opencode.ai/favicon-96x96-v3.png', tool: 'opencode', command: 'curl -fsSL https://opencode.ai/install | bash', verify: 'opencode --version', login: 'opencode auth login', docs: 'https://opencode.ai/download', provider: 'SST' },
@@ -633,8 +660,7 @@ const webUIHTML = `<!doctype html>
     function join(values) { return values && values.length ? values.join(', ') : '-'; }
     function splitCSV(value) { return String(value || '').split(',').map(function(item) { return item.trim(); }).filter(Boolean); }
     function authHeaders() {
-      const token = tokenInput.value.trim();
-      return token ? { Authorization: 'Bearer ' + token } : {};
+      return state.sessionToken ? { Authorization: 'Bearer ' + state.sessionToken } : {};
     }
     function showToast(message) {
       const toast = $('toast');
@@ -669,7 +695,7 @@ const webUIHTML = `<!doctype html>
       renderTerminalOptions();
       renderCliManager();
       renderTenants();
-      renderTokens();
+      renderUsers();
       setConnected(state.connected, state.statusKey);
       if (state.term && state.term.buffer.active.length <= 2) {
         state.term.clear();
@@ -740,11 +766,53 @@ const webUIHTML = `<!doctype html>
     }
 
     async function login(showMessage) {
-      localStorage.setItem('agent-runtime-token', tokenInput.value.trim());
-      state.session = await api('/api/session');
+      const username = usernameInput.value.trim();
+      const response = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: username, password: passwordInput.value })
+      });
+      if (!response.ok) {
+        let message = response.statusText;
+        try {
+          const body = await response.json();
+          message = body.error || message;
+        } catch (err) {}
+        throw new Error(message);
+      }
+      const body = await response.json();
+      state.sessionToken = body.token || '';
+      state.session = body.session || null;
+      localStorage.setItem('agent-runtime-session-token', state.sessionToken);
+      localStorage.setItem('agent-runtime-username', username);
+      passwordInput.value = '';
       renderSession();
       await refreshSecure();
       if (showMessage) showToast(t('loginOK') + ': ' + state.session.subject);
+    }
+
+    async function restoreSession() {
+      if (!state.sessionToken) throw new Error('not logged in');
+      state.session = await api('/api/session');
+      renderSession();
+      await refreshSecure();
+    }
+
+    function logout() {
+      state.sessionToken = '';
+      state.session = null;
+      state.tenants = [];
+      state.users = [];
+      state.tools = [];
+      localStorage.removeItem('agent-runtime-session-token');
+      disconnectTerminal();
+      renderSession();
+      renderTerminalOptions();
+      renderCliManager();
+      renderTenants();
+      renderUsers();
+      refreshTools().then(renderCliManager).catch(function() {});
+      showToast(t('loggedOut'));
     }
 
     async function refresh() {
@@ -752,15 +820,15 @@ const webUIHTML = `<!doctype html>
       setMetric('health', 'health-led', results[0].status === 'fulfilled' ? results[0].value.status : 'error');
       setMetric('ready', 'ready-led', results[1].status === 'fulfilled' ? results[1].value.status : 'error');
       try {
-        await login(false);
+        await restoreSession();
       } catch (err) {
         state.session = null;
         state.tenants = [];
-        state.tokens = [];
+        state.users = [];
         await refreshTools();
         renderSession();
         renderTenants();
-        renderTokens();
+        renderUsers();
       }
     }
 
@@ -769,14 +837,14 @@ const webUIHTML = `<!doctype html>
       renderTerminalOptions();
       await refreshTools();
       if (state.session && state.session.admin) {
-        await refreshTokens();
+        await refreshUsers();
       } else {
-        state.tokens = [];
+        state.users = [];
       }
       renderSession();
       renderCliManager();
       renderTenants();
-      renderTokens();
+      renderUsers();
       await refreshFiles().catch(function() {});
     }
 
@@ -798,9 +866,9 @@ const webUIHTML = `<!doctype html>
       $('tenant-count').textContent = String(state.tenants.length);
     }
 
-    async function refreshTokens() {
-      const body = await api('/api/tokens');
-      state.tokens = body.tokens || [];
+    async function refreshUsers() {
+      const body = await api('/api/users');
+      state.users = body.users || [];
     }
 
     function setMetric(textID, ledID, value) {
@@ -817,8 +885,10 @@ const webUIHTML = `<!doctype html>
       $('session-led').classList.toggle('bad', !loggedIn);
       $('session-label').textContent = loggedIn ? state.session.subject : 'not logged in';
       $('role-label').textContent = loggedIn ? state.session.role : '-';
-      $('admin-token-form').classList.toggle('hidden', !(state.session && state.session.admin));
-      $('token-list').classList.toggle('hidden', !(state.session && state.session.admin));
+      $('admin-user-form').classList.toggle('hidden', !(state.session && state.session.admin));
+      $('user-list').classList.toggle('hidden', !(state.session && state.session.admin));
+      $('login').disabled = loggedIn;
+      $('logout').disabled = !loggedIn;
     }
 
     function renderTerminalOptions() {
@@ -856,7 +926,7 @@ const webUIHTML = `<!doctype html>
       const size = resizeTerminal();
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const params = new URLSearchParams({
-        token: tokenInput.value.trim(),
+        token: state.sessionToken,
         tenant: $('tenant').value,
         workspace: $('workspace').value.trim(),
         credential_profile: $('profile').value.trim(),
@@ -873,7 +943,6 @@ const webUIHTML = `<!doctype html>
       state.term.clear();
       state.term.writeln(t('terminalConnecting'));
       setConnected(false, 'connecting');
-      localStorage.setItem('agent-runtime-token', tokenInput.value.trim());
       const ws = new WebSocket(terminalURL());
       state.ws = ws;
       ws.onopen = function() {
@@ -1012,37 +1081,38 @@ const webUIHTML = `<!doctype html>
       }).join('');
     }
 
-    function renderTokens() {
+    function renderUsers() {
       if (!(state.session && state.session.admin)) return;
-      const container = $('token-list');
-      if (!state.tokens.length) {
-        container.innerHTML = '<div class="empty">' + escapeHTML(t('noTokens')) + '</div>';
+      const container = $('user-list');
+      if (!state.users.length) {
+        container.innerHTML = '<div class="empty">' + escapeHTML(t('noUsers')) + '</div>';
         return;
       }
-      container.innerHTML = state.tokens.map(function(item) {
-        return '<article class="token-card">' +
-          '<div class="token-card-head"><span>' + escapeHTML(item.subject) + '</span><span class="badge">' + escapeHTML(item.role) + '</span></div>' +
+      container.innerHTML = state.users.map(function(item) {
+        return '<article class="user-card">' +
+          '<div class="user-card-head"><span>' + escapeHTML(item.username) + '</span><span class="badge">' + escapeHTML(item.role) + '</span></div>' +
           '<div class="kv">' +
-            '<div><strong>token</strong><span class="mono">' + escapeHTML(item.token_preview) + '</span></div>' +
+            '<div><strong>' + escapeHTML(t('subject')) + '</strong><span>' + escapeHTML(item.subject) + '</span></div>' +
             '<div><strong>' + escapeHTML(t('tenant')) + '</strong><span>' + escapeHTML(item.tenant) + '</span></div>' +
             '<div><strong>' + escapeHTML(t('tools')) + '</strong><span>' + escapeHTML(join(item.allowed_tools)) + '</span></div>' +
             '<div><strong>' + escapeHTML(t('profiles')) + '</strong><span>' + escapeHTML(join(item.allowed_credential_profiles)) + '</span></div>' +
           '</div>' +
-          '<div style="margin-top:10px"><button class="danger" type="button" data-delete-token="' + escapeHTML(item.id) + '">' + escapeHTML(t('delete')) + '</button></div>' +
+          '<div style="margin-top:10px"><button class="danger" type="button" data-delete-user="' + escapeHTML(item.id) + '">' + escapeHTML(t('delete')) + '</button></div>' +
         '</article>';
       }).join('');
-      container.querySelectorAll('[data-delete-token]').forEach(function(button) {
+      container.querySelectorAll('[data-delete-user]').forEach(function(button) {
         button.addEventListener('click', async function() {
-          await api('/api/tokens/' + encodeURIComponent(button.dataset.deleteToken), { method: 'DELETE' });
-          showToast(t('tokenDeleted'));
+          await api('/api/users/' + encodeURIComponent(button.dataset.deleteUser), { method: 'DELETE' });
+          showToast(t('userDeleted'));
           await refreshSecure();
         });
       });
     }
 
-    async function saveToken() {
+    async function saveUser() {
       const payload = {
-        token: $('token-new').value.trim(),
+        username: $('username-new').value.trim(),
+        password: $('password-new').value,
         subject: $('subject-new').value.trim(),
         tenant: $('tenant-new').value.trim(),
         role: $('role-new').value,
@@ -1052,14 +1122,17 @@ const webUIHTML = `<!doctype html>
         allow_terminal: $('terminal-new').value === 'true',
         max_job_seconds: Number($('duration-new').value || 0)
       };
-      await api('/api/tokens', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-      showToast(t('tokenSaved'));
+      await api('/api/users', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      $('password-new').value = '';
+      showToast(t('userSaved'));
       await refreshSecure();
     }
 
     async function refreshFiles() {
       if (!$('file-tenant').value) {
         $('file-list').innerHTML = '<div class="empty">' + escapeHTML(t('noTenants')) + '</div>';
+        $('file-view-path').textContent = t('noFileSelected');
+        $('file-preview').textContent = '';
         return;
       }
       const params = new URLSearchParams({
@@ -1070,26 +1143,55 @@ const webUIHTML = `<!doctype html>
       const body = await api('/api/files?' + params.toString());
       $('file-abs-path').textContent = body.abs_path || '-';
       $('file-path-input').value = body.path && body.path !== '.' ? '/' + body.path : '/';
+      $('file-view-path').textContent = t('noFileSelected');
+      $('file-preview').textContent = '';
       if (!body.entries || !body.entries.length) {
         $('file-list').innerHTML = '<div class="empty">' + escapeHTML(t('noFiles')) + '</div>';
         return;
       }
       $('file-list').innerHTML = body.entries.map(function(item) {
         const isDir = item.kind === 'directory';
-        return '<div class="file-row">' +
-          '<div class="file-name"><span>' + (isDir ? '▸' : '·') + '</span>' +
-          (isDir ? '<button type="button" data-open-path="/' + escapeHTML(item.path) + '">' + escapeHTML(item.name) + '</button>' : '<span>' + escapeHTML(item.name) + '</span>') +
+        const icon = isDir ? '▸' : '·';
+        const size = isDir ? item.kind : formatBytes(item.size || 0);
+        return '<div class="file-row" data-entry-kind="' + escapeHTML(item.kind) + '" data-entry-path="/' + escapeHTML(item.path) + '">' +
+          '<div class="file-name"><span>' + escapeHTML(icon) + '</span>' +
+          '<button type="button">' + escapeHTML(item.name + (isDir ? '/' : '')) + '</button>' +
           '</div>' +
-          '<div class="file-meta">' + escapeHTML(item.kind) + '</div>' +
-          '<div class="file-meta">' + escapeHTML(new Date(item.modified).toLocaleString()) + '</div>' +
+          '<div class="file-meta">' + escapeHTML(size) + '</div>' +
         '</div>';
       }).join('');
-      $('file-list').querySelectorAll('[data-open-path]').forEach(function(button) {
-        button.addEventListener('click', async function() {
-          $('file-path-input').value = button.dataset.openPath;
-          await refreshFiles().catch(function(err) { showToast(err.message); });
+      $('file-list').querySelectorAll('[data-entry-path]').forEach(function(row) {
+        row.addEventListener('click', async function() {
+          $('file-list').querySelectorAll('.file-row').forEach(function(item) { item.classList.remove('active'); });
+          row.classList.add('active');
+          if (row.dataset.entryKind === 'directory') {
+            $('file-path-input').value = row.dataset.entryPath;
+            await refreshFiles().catch(function(err) { showToast(err.message); });
+            return;
+          }
+          await previewFile(row.dataset.entryPath).catch(function(err) { showToast(err.message); });
         });
       });
+    }
+
+    async function previewFile(path) {
+      const params = new URLSearchParams({
+        tenant: $('file-tenant').value,
+        space: $('file-space').value,
+        path: path
+      });
+      $('file-view-path').textContent = path;
+      $('file-preview').textContent = 'Loading...';
+      const body = await api('/api/files/raw?' + params.toString());
+      $('file-view-path').textContent = (body.path && body.path !== '.' ? '/' + body.path : path) + ' · ' + formatBytes(body.size || 0);
+      $('file-preview').textContent = body.content + (body.truncated ? '\n\n[truncated]' : '');
+    }
+
+    function formatBytes(value) {
+      value = Number(value || 0);
+      if (value < 1024) return value + ' B';
+      if (value < 1024 * 1024) return (value / 1024).toFixed(1) + ' KB';
+      return (value / 1024 / 1024).toFixed(1) + ' MB';
     }
 
     function parentPath(path) {
@@ -1117,6 +1219,10 @@ const webUIHTML = `<!doctype html>
       });
     });
     $('login').addEventListener('click', function() { login(true).catch(function(err) { showToast(err.message); }); });
+    $('logout').addEventListener('click', logout);
+    $('password').addEventListener('keydown', function(event) {
+      if (event.key === 'Enter') login(true).catch(function(err) { showToast(err.message); });
+    });
     $('refresh').addEventListener('click', function() { refresh().then(function() { showToast(t('refreshed')); }).catch(function(err) { showToast(err.message); }); });
     $('refresh-tools').addEventListener('click', function() { refreshTools().then(renderCliManager).catch(function(err) { showToast(err.message); }); });
     $('tenant').addEventListener('change', function() { updateProfileOptions(); refreshTools().then(renderCliManager).catch(function() {}); });
@@ -1125,7 +1231,7 @@ const webUIHTML = `<!doctype html>
     $('connect-terminal').addEventListener('click', connectTerminal);
     $('disconnect-terminal').addEventListener('click', disconnectTerminal);
     $('clear-terminal').addEventListener('click', function() { if (state.term) state.term.clear(); });
-    $('save-token').addEventListener('click', function() { saveToken().catch(function(err) { showToast(err.message); }); });
+    $('save-user').addEventListener('click', function() { saveUser().catch(function(err) { showToast(err.message); }); });
     $('file-refresh').addEventListener('click', function() { refreshFiles().catch(function(err) { showToast(err.message); }); });
     $('file-parent').addEventListener('click', function() { $('file-path-input').value = parentPath($('file-path-input').value); refreshFiles().catch(function(err) { showToast(err.message); }); });
     $('file-tenant').addEventListener('change', function() { refreshFiles().catch(function(err) { showToast(err.message); }); });

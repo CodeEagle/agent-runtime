@@ -2,6 +2,7 @@ package files
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -27,6 +28,17 @@ type Entry struct {
 	Kind     string    `json:"kind"`
 	Size     int64     `json:"size"`
 	Modified time.Time `json:"modified"`
+}
+
+type Content struct {
+	TenantID  string    `json:"tenant"`
+	Space     string    `json:"space"`
+	Path      string    `json:"path"`
+	AbsPath   string    `json:"abs_path"`
+	Size      int64     `json:"size"`
+	Modified  time.Time `json:"modified"`
+	Content   string    `json:"content"`
+	Truncated bool      `json:"truncated"`
 }
 
 func NewExplorer(tenantsDir string) Explorer {
@@ -111,6 +123,79 @@ func (e Explorer) List(tenantID string, space string, requestedPath string) (Lis
 		AbsPath:  resolved,
 		Entries:  entries,
 	}, nil
+}
+
+func (e Explorer) Read(tenantID string, space string, requestedPath string, maxBytes int64) (Content, error) {
+	if maxBytes <= 0 {
+		maxBytes = 2 * 1024 * 1024
+	}
+	_, relPath, resolved, err := e.resolve(tenantID, space, requestedPath)
+	if err != nil {
+		return Content{}, err
+	}
+	info, err := os.Stat(resolved)
+	if err != nil {
+		return Content{}, fmt.Errorf("stat path: %w", err)
+	}
+	if info.IsDir() {
+		return Content{}, fmt.Errorf("path is a directory")
+	}
+	file, err := os.Open(resolved)
+	if err != nil {
+		return Content{}, fmt.Errorf("open file: %w", err)
+	}
+	defer file.Close()
+	limited := io.LimitReader(file, maxBytes+1)
+	raw, err := io.ReadAll(limited)
+	if err != nil {
+		return Content{}, fmt.Errorf("read file: %w", err)
+	}
+	truncated := int64(len(raw)) > maxBytes
+	if truncated {
+		raw = raw[:maxBytes]
+	}
+	return Content{
+		TenantID:  tenantID,
+		Space:     normalizeSpace(space),
+		Path:      filepath.ToSlash(relPath),
+		AbsPath:   resolved,
+		Size:      info.Size(),
+		Modified:  info.ModTime(),
+		Content:   string(raw),
+		Truncated: truncated || info.Size() > int64(len(raw)),
+	}, nil
+}
+
+func (e Explorer) resolve(tenantID string, space string, requestedPath string) (string, string, string, error) {
+	if !safeID(tenantID) {
+		return "", "", "", fmt.Errorf("unsafe tenant id %q", tenantID)
+	}
+	space = normalizeSpace(space)
+	if space == "" {
+		return "", "", "", fmt.Errorf("space must be workspaces or homes")
+	}
+	root, err := filepath.Abs(e.tenantsDir)
+	if err != nil {
+		return "", "", "", fmt.Errorf("resolve tenants dir: %w", err)
+	}
+	base := filepath.Join(root, tenantID, space)
+	if err := os.MkdirAll(base, 0o755); err != nil {
+		return "", "", "", fmt.Errorf("create tenant %s root: %w", space, err)
+	}
+
+	relPath, err := cleanRelativePath(requestedPath)
+	if err != nil {
+		return "", "", "", err
+	}
+	target := filepath.Join(base, relPath)
+	resolved, err := filepath.Abs(target)
+	if err != nil {
+		return "", "", "", fmt.Errorf("resolve path: %w", err)
+	}
+	if resolved != base && !strings.HasPrefix(resolved, base+string(os.PathSeparator)) {
+		return "", "", "", fmt.Errorf("path escapes tenant root")
+	}
+	return base, relPath, resolved, nil
 }
 
 func normalizeSpace(space string) string {

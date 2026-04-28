@@ -43,6 +43,37 @@ func TestStoreListsTenantSummariesWithoutTokens(t *testing.T) {
 	assertStrings(t, got[0].CredentialProfiles, []string{"default", "ops"})
 }
 
+func TestStoreAuthenticatesUsers(t *testing.T) {
+	store, err := tenants.NewStoreWithUsers(map[string]policy.Policy{
+		"admin-token": {
+			SubjectID:                 "user:admin",
+			TenantID:                  "team-a",
+			Role:                      "admin",
+			AllowedTools:              []string{"codex"},
+			AllowedWorkspaces:         []string{"repo-*"},
+			AllowedCredentialProfiles: []string{"default"},
+			AllowTerminal:             true,
+			MaxJobDuration:            time.Minute,
+		},
+	}, []tenants.UserRequest{
+		{Username: "admin", Password: "secret", Token: "admin-token"},
+	})
+	if err != nil {
+		t.Fatalf("create store: %v", err)
+	}
+
+	token, p, ok := store.AuthenticateUser("admin", "secret")
+	if !ok {
+		t.Fatal("expected user authentication to succeed")
+	}
+	if token != "admin-token" || p.SubjectID != "user:admin" || !p.IsAdmin() {
+		t.Fatalf("unexpected user session: token=%q policy=%#v", token, p)
+	}
+	if _, _, ok := store.AuthenticateUser("admin", "wrong"); ok {
+		t.Fatal("expected wrong password to fail")
+	}
+}
+
 func assertStrings(t *testing.T, got []string, want []string) {
 	t.Helper()
 	if len(got) != len(want) {

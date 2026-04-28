@@ -22,8 +22,12 @@ type ToolManager interface {
 
 type TenantManager interface {
 	Lookup(token string) (policy.Policy, bool)
+	AuthenticateUser(username string, password string) (string, policy.Policy, bool)
 	List() []tenants.Summary
 	ListFor(policy.Policy) []tenants.Summary
+	ListUsers() []tenants.UserSummary
+	UpsertUser(tenants.UserRequest) (tenants.UserSummary, error)
+	DeleteUser(id string) error
 	ListTokens() []tenants.TokenSummary
 	UpsertToken(tenants.TokenRequest) (tenants.TokenSummary, error)
 	DeleteToken(id string) error
@@ -52,15 +56,20 @@ func NewServer(options Options) http.Handler {
 	mux.HandleFunc("GET /api/health", server.health)
 	mux.HandleFunc("GET /api/ready", server.ready)
 	mux.HandleFunc("GET /api/status", server.status)
+	mux.HandleFunc("POST /api/login", server.login)
 	mux.HandleFunc("GET /api/session", server.session)
 	mux.HandleFunc("GET /api/tools", server.listTools)
 	mux.HandleFunc("POST /api/tools", server.upsertTool)
 	mux.HandleFunc("DELETE /api/tools/{name}", server.deleteTool)
 	mux.HandleFunc("GET /api/tenants", server.listTenants)
+	mux.HandleFunc("GET /api/users", server.listUsers)
+	mux.HandleFunc("POST /api/users", server.upsertUser)
+	mux.HandleFunc("DELETE /api/users/{id}", server.deleteUser)
 	mux.HandleFunc("GET /api/tokens", server.listTokens)
 	mux.HandleFunc("POST /api/tokens", server.upsertToken)
 	mux.HandleFunc("DELETE /api/tokens/{id}", server.deleteToken)
 	mux.HandleFunc("GET /api/files", server.listFiles)
+	mux.HandleFunc("GET /api/files/raw", server.readFile)
 	mux.HandleFunc("GET /api/terminal", server.terminalSession)
 	mux.HandleFunc("GET /api/v1/terminal/ws", server.terminalSession)
 	mux.HandleFunc("POST /api/jobs", server.createJob)
@@ -220,23 +229,80 @@ func (s *server) listTenants(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"tenants": s.tenants.ListFor(p)})
 }
 
+func (s *server) login(w http.ResponseWriter, r *http.Request) {
+	if s.tenants == nil {
+		writeError(w, http.StatusServiceUnavailable, "tenant store is not configured")
+		return
+	}
+	var req struct {
+		Username string `json:"username"`
+		Password string `json:"password"`
+	}
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("invalid login request: %v", err))
+		return
+	}
+	token, p, ok := s.tenants.AuthenticateUser(req.Username, req.Password)
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid username or password")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"token":   token,
+		"session": sessionBody(p),
+	})
+}
+
 func (s *server) session(w http.ResponseWriter, r *http.Request) {
 	p, ok := s.authenticate(r)
 	if !ok {
 		writeError(w, http.StatusUnauthorized, "missing or invalid bearer token")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"subject":                     p.SubjectID,
-		"tenant":                      p.TenantID,
-		"role":                        p.Role,
-		"admin":                       p.IsAdmin(),
-		"allowed_tools":               p.AllowedTools,
-		"allowed_workspaces":          p.AllowedWorkspaces,
-		"allowed_credential_profiles": p.AllowedCredentialProfiles,
-		"allow_terminal":              p.AllowTerminal,
-		"max_job_seconds":             int(p.MaxJobDuration.Seconds()),
-	})
+	writeJSON(w, http.StatusOK, sessionBody(p))
+}
+
+func (s *server) listUsers(w http.ResponseWriter, r *http.Request) {
+	if !s.requireAdmin(w, r) {
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"users": s.tenants.ListUsers()})
+}
+
+func (s *server) upsertUser(w http.ResponseWriter, r *http.Request) {
+	if !s.requireAdmin(w, r) {
+		return
+	}
+	var req tenants.UserRequest
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("invalid user request: %v", err))
+		return
+	}
+	user, err := s.tenants.UpsertUser(req)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusCreated, user)
+}
+
+func (s *server) deleteUser(w http.ResponseWriter, r *http.Request) {
+	if !s.requireAdmin(w, r) {
+		return
+	}
+	if err := s.tenants.DeleteUser(r.PathValue("id")); err != nil {
+		status := http.StatusInternalServerError
+		if strings.Contains(err.Error(), "not found") {
+			status = http.StatusNotFound
+		}
+		writeError(w, status, err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (s *server) listTokens(w http.ResponseWriter, r *http.Request) {
@@ -301,6 +367,29 @@ func (s *server) listFiles(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, listing)
+}
+
+func (s *server) readFile(w http.ResponseWriter, r *http.Request) {
+	p, ok := s.authenticate(r)
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "missing or invalid bearer token")
+		return
+	}
+	query := r.URL.Query()
+	tenantID := query.Get("tenant")
+	if tenantID == "" {
+		tenantID = p.TenantID
+	}
+	if err := p.AuthorizeTenant(tenantID); err != nil {
+		writeError(w, http.StatusForbidden, err.Error())
+		return
+	}
+	content, err := s.files.Read(tenantID, query.Get("space"), query.Get("path"), 2*1024*1024)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, content)
 }
 
 func (s *server) terminalSession(w http.ResponseWriter, r *http.Request) {
@@ -440,6 +529,20 @@ type toolResponse struct {
 	ResolvedPath     string `json:"resolved_path,omitempty"`
 	DetectedVersion  string `json:"detected_version,omitempty"`
 	Error            string `json:"error,omitempty"`
+}
+
+func sessionBody(p policy.Policy) map[string]any {
+	return map[string]any{
+		"subject":                     p.SubjectID,
+		"tenant":                      p.TenantID,
+		"role":                        p.Role,
+		"admin":                       p.IsAdmin(),
+		"allowed_tools":               p.AllowedTools,
+		"allowed_workspaces":          p.AllowedWorkspaces,
+		"allowed_credential_profiles": p.AllowedCredentialProfiles,
+		"allow_terminal":              p.AllowTerminal,
+		"max_job_seconds":             int(p.MaxJobDuration.Seconds()),
+	}
 }
 
 func writeJSON(w http.ResponseWriter, status int, value any) {

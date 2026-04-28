@@ -32,7 +32,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("load tool registry: %v", err)
 	}
-	tenantStore, err := tenants.NewPersistentStore(cfg.PolicyStore(), filepath.Join(cfg.Storage.TenantsDir, "registry.json"))
+	tenantStore, err := tenants.NewPersistentStore(cfg.PolicyStore(), cfg.UserStore(), filepath.Join(cfg.Storage.TenantsDir, "registry.json"))
 	if err != nil {
 		log.Fatalf("load tenant registry: %v", err)
 	}

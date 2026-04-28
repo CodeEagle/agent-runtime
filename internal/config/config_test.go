@@ -27,6 +27,9 @@ func TestLoadAppliesDefaultsAndParsesTokens(t *testing.T) {
 				"allowed_credential_profiles": ["team-default"],
 				"max_job_seconds": 600
 			}
+		],
+		"users": [
+			{"username": "admin", "password": "admin", "token": "secret-token"}
 		]
 	}`
 	if err := os.WriteFile(path, []byte(raw), 0o600); err != nil {
@@ -55,6 +58,9 @@ func TestLoadAppliesDefaultsAndParsesTokens(t *testing.T) {
 	}
 	if cfg.Tokens[0].Policy.MaxJobDuration != 10*time.Minute {
 		t.Fatalf("expected max duration 10m, got %s", cfg.Tokens[0].Policy.MaxJobDuration)
+	}
+	if len(cfg.UserStore()) != 1 || cfg.UserStore()[0].Username != "admin" {
+		t.Fatalf("expected one user login, got %#v", cfg.UserStore())
 	}
 }
 

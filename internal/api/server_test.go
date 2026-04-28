@@ -71,14 +71,17 @@ func TestServerServesWebUIAtRoot(t *testing.T) {
 	if !strings.Contains(body, "Terminal") || !strings.Contains(body, "CLI Manager") {
 		t.Fatalf("expected terminal and inline CLI manager, got %q", body)
 	}
-	if !strings.Contains(body, "Installed CLIs") || strings.Contains(body, "Repositories") || strings.Contains(body, `data-manager-tab`) || strings.Contains(body, `repositories-panel`) {
-		t.Fatalf("expected CLI manager to show a single installed CLI list, got %q", body)
+	if strings.Contains(body, "Installed CLIs") || strings.Contains(body, "Repositories") || strings.Contains(body, `data-manager-tab`) || strings.Contains(body, `repositories-panel`) {
+		t.Fatalf("expected CLI manager to show cards without redundant tabs, got %q", body)
 	}
 	if strings.Contains(body, `data-view="tools-view"`) || strings.Contains(body, `id="tools-view"`) {
 		t.Fatalf("expected CLI manager to live inside terminal view, got %q", body)
 	}
 	if !strings.Contains(body, "/api/files") || !strings.Contains(body, "File Explorer") {
 		t.Fatalf("expected UI to include tenant file explorer, got %q", body)
+	}
+	if !strings.Contains(body, "/api/login") || !strings.Contains(body, `id="username"`) || !strings.Contains(body, `id="password"`) || strings.Contains(body, `id="token"`) {
+		t.Fatalf("expected UI to use username/password login instead of top-level token entry, got %q", body)
 	}
 	if !strings.Contains(body, "/assets/xterm/xterm.js") {
 		t.Fatalf("expected UI to load vendored xterm assets, got %q", body)
@@ -100,7 +103,7 @@ func TestServerServesWebUIAtRoot(t *testing.T) {
 		}
 	}
 	for _, marker := range []string{
-		"https://claude.ai/favicon.ico",
+		"https://claude.ai/favicon.svg",
 		"https://avatars.githubusercontent.com/u/14957082",
 		"https://avatars.githubusercontent.com/u/161781182",
 		"https://opencode.ai/favicon-96x96-v3.png",
@@ -153,6 +156,30 @@ func TestServerAddsAndDeletesTools(t *testing.T) {
 	handler.ServeHTTP(res, req)
 	if res.Code != http.StatusNoContent {
 		t.Fatalf("expected status 204, got %d: %s", res.Code, res.Body.String())
+	}
+}
+
+func TestServerLogsInUsers(t *testing.T) {
+	handler := newTestServer(t)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/login", strings.NewReader(`{"username":"admin","password":"secret"}`))
+	res := httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", res.Code, res.Body.String())
+	}
+	var body struct {
+		Token   string `json:"token"`
+		Session struct {
+			Subject string `json:"subject"`
+			Admin   bool   `json:"admin"`
+		} `json:"session"`
+	}
+	if err := json.Unmarshal(res.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode login response: %v", err)
+	}
+	if body.Token != "token-1" || body.Session.Subject != "service-account:test" || !body.Session.Admin {
+		t.Fatalf("unexpected login body: %#v", body)
 	}
 }
 
@@ -282,6 +309,21 @@ func TestServerListsFilesWithinTenantBoundary(t *testing.T) {
 		t.Fatalf("expected repo-main entry, got %#v", body.Entries)
 	}
 
+	req = httptest.NewRequest(http.MethodGet, "/api/files/raw?tenant=team-a&space=workspaces&path=/repo-main/README.md", nil)
+	req.Header.Set("Authorization", "Bearer team-a-token")
+	res = httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected raw status 200, got %d: %s", res.Code, res.Body.String())
+	}
+	var raw files.Content
+	if err := json.Unmarshal(res.Body.Bytes(), &raw); err != nil {
+		t.Fatalf("decode raw file: %v", err)
+	}
+	if raw.Content != "ok" {
+		t.Fatalf("expected raw file content, got %#v", raw)
+	}
+
 	req = httptest.NewRequest(http.MethodGet, "/api/files?tenant=team-b&space=workspaces&path=/", nil)
 	req.Header.Set("Authorization", "Bearer team-a-token")
 	res = httptest.NewRecorder()
@@ -392,7 +434,7 @@ func newTestServer(t *testing.T) http.Handler {
 	registry := tools.NewRegistry([]tools.Tool{
 		{Name: "codex", Path: "/usr/bin/codex", Version: "test", CredentialEnv: "CODEX_HOME", CredentialSubdir: ".codex"},
 	})
-	tenantStore := tenants.NewStore(map[string]policy.Policy{
+	tenantStore, err := tenants.NewStoreWithUsers(map[string]policy.Policy{
 		"token-1": {
 			SubjectID:                 "service-account:test",
 			TenantID:                  "team-a",
@@ -403,7 +445,10 @@ func newTestServer(t *testing.T) http.Handler {
 			AllowTerminal:             true,
 			MaxJobDuration:            time.Minute,
 		},
-	})
+	}, []tenants.UserRequest{{Username: "admin", Password: "secret", Token: "token-1"}})
+	if err != nil {
+		t.Fatalf("create tenant store: %v", err)
+	}
 	resolveWorkspace := func(string, string) (string, error) {
 		return t.TempDir(), nil
 	}
