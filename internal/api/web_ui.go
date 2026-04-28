@@ -503,6 +503,8 @@ const webUIHTML = `<!doctype html>
         officialSource: '官方来源',
         healthOK: 'Health OK',
         notInstalled: '未安装',
+        loginToCheck: '登录后检查',
+        checking: '检查中',
         registeredOnly: '仅注册',
         delete: '删除',
         tenantManager: '用户与租户',
@@ -576,6 +578,8 @@ const webUIHTML = `<!doctype html>
         officialSource: 'Official Source',
         healthOK: 'Health OK',
         notInstalled: 'Not installed',
+        loginToCheck: 'Login to check',
+        checking: 'Checking',
         registeredOnly: 'Registered only',
         delete: 'Delete',
         tenantManager: 'Users & Tenants',
@@ -625,16 +629,19 @@ const webUIHTML = `<!doctype html>
     const state = {
       lang: savedLanguage || 'zh',
       view: 'terminal-view',
-      sessionToken: localStorage.getItem('agent-runtime-session-token') || '',
+      sessionToken: localStorage.getItem('agent-runtime-session-token') || localStorage.getItem('agent-runtime-token') || '',
       session: null,
       tools: [],
+      toolsLoaded: false,
+      toolsContextReady: false,
       tenants: [],
       users: [],
       ws: null,
       connected: false,
       statusKey: 'disconnected',
       term: null,
-      pendingCommand: ''
+      pendingCommand: '',
+      installPollTimer: null
     };
     const usernameInput = document.getElementById('username');
     const passwordInput = document.getElementById('password');
@@ -794,6 +801,8 @@ const webUIHTML = `<!doctype html>
     async function restoreSession() {
       if (!state.sessionToken) throw new Error('not logged in');
       state.session = await api('/api/session');
+      localStorage.setItem('agent-runtime-session-token', state.sessionToken);
+      localStorage.removeItem('agent-runtime-token');
       renderSession();
       await refreshSecure();
     }
@@ -804,14 +813,16 @@ const webUIHTML = `<!doctype html>
       state.tenants = [];
       state.users = [];
       state.tools = [];
+      state.toolsLoaded = false;
+      state.toolsContextReady = false;
       localStorage.removeItem('agent-runtime-session-token');
+      localStorage.removeItem('agent-runtime-token');
       disconnectTerminal();
       renderSession();
       renderTerminalOptions();
       renderCliManager();
       renderTenants();
       renderUsers();
-      refreshTools().then(renderCliManager).catch(function() {});
       showToast(t('loggedOut'));
     }
 
@@ -825,8 +836,10 @@ const webUIHTML = `<!doctype html>
         state.session = null;
         state.tenants = [];
         state.users = [];
-        await refreshTools();
+        state.toolsLoaded = false;
+        state.toolsContextReady = false;
         renderSession();
+        renderCliManager();
         renderTenants();
         renderUsers();
       }
@@ -850,12 +863,14 @@ const webUIHTML = `<!doctype html>
 
     async function refreshTools() {
       let path = '/api/tools';
-      if (state.session && $('tenant').value && $('profile').value) {
+      state.toolsContextReady = !!(state.session && $('tenant').value && $('profile').value.trim());
+      if (state.toolsContextReady) {
         const params = new URLSearchParams({ tenant: $('tenant').value, credential_profile: $('profile').value.trim() });
         path += '?' + params.toString();
       }
       const body = await api(path);
       state.tools = body.tools || [];
+      state.toolsLoaded = true;
       const available = state.tools.filter(function(tool) { return tool.available; }).length;
       $('available-cli').textContent = available + ' / ' + state.tools.length;
     }
@@ -1008,6 +1023,20 @@ const webUIHTML = `<!doctype html>
       connectTerminal();
     }
 
+    function startInstallPolling() {
+      if (state.installPollTimer) window.clearInterval(state.installPollTimer);
+      let remaining = 40;
+      state.installPollTimer = window.setInterval(function() {
+        if (remaining <= 0) {
+          window.clearInterval(state.installPollTimer);
+          state.installPollTimer = null;
+          return;
+        }
+        remaining--;
+        refreshTools().then(renderCliManager).catch(function() {});
+      }, 3000);
+    }
+
     function renderCliManager() {
       renderInstalledClis();
     }
@@ -1021,11 +1050,14 @@ const webUIHTML = `<!doctype html>
       const known = new Map(state.tools.map(function(tool) { return [tool.name, tool]; }));
       $('installed-panel').innerHTML = installSources.map(function(source) {
         const tool = known.get(source.tool) || { name: source.tool, available: false, health: 'missing' };
-        const available = !!tool.available;
-        const version = available ? (tool.detected_version || tool.version || '-') : t('notInstalled');
-        const healthClass = available ? 'ok' : 'bad';
-        const healthText = available ? t('healthOK') : t('notInstalled');
-        const actions = available
+        const canCheck = state.toolsLoaded && state.toolsContextReady;
+        const available = canCheck && !!tool.available;
+        const version = available ? (tool.detected_version || tool.version || '-') : (canCheck ? t('notInstalled') : t('loginToCheck'));
+        const healthClass = available ? 'ok' : (canCheck ? 'bad' : 'warn');
+        const healthText = available ? t('healthOK') : (canCheck ? t('notInstalled') : t('loginToCheck'));
+        const actions = !canCheck
+          ? '<button class="ghost" type="button" disabled>' + escapeHTML(t('checking')) + '</button>'
+          : available
           ? '<button class="ghost" type="button" data-login-command="' + escapeHTML(source.login) + '">' + escapeHTML(t('quickLogin')) + ' ↪</button>' +
             '<button class="ghost" type="button" data-install-command="' + escapeHTML(source.verify) + '">' + escapeHTML(t('verify')) + '</button>' +
             (state.session && state.session.admin && known.has(source.tool) ? '<button class="danger" type="button" data-delete-tool="' + escapeHTML(source.tool) + '">' + escapeHTML(t('delete')) + '</button>' : '')
@@ -1046,7 +1078,10 @@ const webUIHTML = `<!doctype html>
 
     function bindManagerButtons(root) {
       root.querySelectorAll('[data-install-command]').forEach(function(button) {
-        button.addEventListener('click', function() { runCommand(button.dataset.installCommand); });
+        button.addEventListener('click', function() {
+          runCommand(button.dataset.installCommand);
+          startInstallPolling();
+        });
       });
       root.querySelectorAll('[data-login-command]').forEach(function(button) {
         button.addEventListener('click', function() { runCommand(button.dataset.loginCommand); });
