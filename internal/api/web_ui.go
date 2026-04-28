@@ -208,11 +208,9 @@ const webUIHTML = `<!doctype html>
     .xterm-frame { height: 100%; overflow: hidden; border: 1px solid #172332; border-radius: 8px; background: #05070a; box-shadow: inset 0 0 42px rgba(37, 215, 207, 0.05); }
     #terminal-container { height: 100%; width: 100%; padding: 8px; }
     .xterm { height: 100%; padding: 2px; }
-    .manager-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 12px 12px 0; }
-    .manager-tabs button { border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; color: var(--muted); font-size: 14px; }
-    .manager-tabs button.active { color: var(--cyan); border-bottom-color: var(--cyan); }
+    .manager-strip { padding: 12px 12px 0; color: var(--cyan); font-size: 14px; font-weight: 850; }
+    .manager-strip span { min-height: 38px; display: inline-flex; align-items: center; border-bottom: 2px solid var(--cyan); }
     .manager-body { padding: 12px; display: grid; gap: 10px; }
-    .wide-action { width: 100%; min-height: 56px; font-size: 16px; }
     .cli-card {
       min-height: 116px;
       display: grid;
@@ -224,18 +222,15 @@ const webUIHTML = `<!doctype html>
       border-radius: 8px;
       background: linear-gradient(180deg, rgba(21, 31, 43, 0.98), rgba(13, 20, 30, 0.98));
     }
-    .cli-logo { width: 46px; height: 46px; display: grid; place-items: center; color: var(--cyan); font-size: 23px; font-weight: 900; }
+    .cli-logo { width: 46px; height: 46px; display: grid; place-items: center; overflow: hidden; border: 1px solid rgba(44, 66, 96, 0.78); border-radius: 8px; background: rgba(3, 7, 12, 0.62); color: var(--cyan); font-size: 13px; font-weight: 900; }
+    .cli-logo img { max-width: 36px; max-height: 36px; object-fit: contain; }
+    .cli-logo span { width: 100%; height: 100%; display: none; place-items: center; }
     .cli-name { font-size: 16px; font-weight: 850; }
     .cli-version { margin-top: 2px; color: var(--muted); font-family: var(--mono); font-size: 13px; }
     .cli-health { margin-top: 10px; }
-    .cli-actions { display: grid; gap: 8px; min-width: 108px; }
-    .repo-card { display: grid; gap: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: rgba(7, 12, 18, 0.76); }
-    .repo-head { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
-    .repo-title strong { display: block; font-size: 14px; }
-    .repo-title span { color: var(--faint); font-size: 12px; }
-    .command { padding: 8px; border: 1px solid rgba(44, 66, 96, 0.82); border-radius: 8px; background: rgba(3, 7, 12, 0.8); color: #d5e8ff; font-family: var(--mono); font-size: 11px; overflow-wrap: anywhere; }
-    .repo-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-    .repo-actions a { min-height: 36px; display: grid; place-items: center; padding: 8px 10px; border: 1px solid var(--line-2); border-radius: 8px; background: rgba(7, 12, 18, 0.68); color: var(--muted); font-size: 13px; font-weight: 760; text-decoration: none; }
+    .cli-actions { display: grid; gap: 8px; min-width: 118px; }
+    .cli-actions a { min-height: 36px; display: grid; place-items: center; padding: 8px 10px; border: 1px solid var(--line-2); border-radius: 8px; background: rgba(6, 10, 15, 0.7); color: var(--muted); font-size: 13px; font-weight: 760; text-decoration: none; }
+    .cli-actions a:hover { border-color: rgba(37, 215, 207, 0.72); }
     .tenant-layout { display: grid; grid-template-columns: 380px minmax(0, 1fr); gap: 16px; align-items: start; }
     .form-stack, .tenant-list, .file-body { display: grid; gap: 10px; padding: 14px; }
     .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -384,14 +379,9 @@ const webUIHTML = `<!doctype html>
                 </div>
                 <button class="ghost" id="refresh-tools" type="button" title="Refresh">↻</button>
               </div>
-              <div class="manager-tabs">
-                <button class="active" type="button" data-manager-tab="installed" data-i18n="installedClis">Installed CLIs</button>
-                <button type="button" data-manager-tab="repositories" data-i18n="repositories">Repositories</button>
-              </div>
+              <div class="manager-strip"><span data-i18n="installedClis">Installed CLIs</span></div>
               <div class="manager-body">
-                <button class="primary wide-action" id="show-install" type="button" data-i18n="installCli">Install CLI</button>
                 <div id="installed-panel"></div>
-                <div id="repositories-panel" class="hidden"></div>
               </div>
             </aside>
           </div>
@@ -487,12 +477,10 @@ const webUIHTML = `<!doctype html>
         credentialProfile: '凭据配置',
         cliManagerDesc: '安装状态来自真实 PATH 探测。',
         installedClis: 'Installed CLIs',
-        repositories: 'Repositories',
         installCli: '安装 CLI',
         quickLogin: 'Quick Login',
         verify: '验证',
         officialSource: '官方来源',
-        terminalInstall: '终端安装',
         healthOK: 'Health OK',
         notInstalled: '未安装',
         registeredOnly: '仅注册',
@@ -559,12 +547,10 @@ const webUIHTML = `<!doctype html>
         credentialProfile: 'Credential Profile',
         cliManagerDesc: 'Install state is checked against the real PATH.',
         installedClis: 'Installed CLIs',
-        repositories: 'Repositories',
         installCli: 'Install CLI',
         quickLogin: 'Quick Login',
         verify: 'Verify',
         officialSource: 'Official Source',
-        terminalInstall: 'Install in Terminal',
         healthOK: 'Health OK',
         notInstalled: 'Not installed',
         registeredOnly: 'Registered only',
@@ -614,7 +600,6 @@ const webUIHTML = `<!doctype html>
     const state = {
       lang: savedLanguage || 'zh',
       view: 'terminal-view',
-      managerTab: 'installed',
       session: null,
       tools: [],
       tenants: [],
@@ -629,13 +614,13 @@ const webUIHTML = `<!doctype html>
     tokenInput.value = localStorage.getItem('agent-runtime-token') || 'dev-token';
 
     const installSources = [
-      { label: 'Claude Code', icon: '✳', tool: 'claude', command: 'curl -fsSL https://claude.ai/install.sh | bash', verify: 'claude --version', login: 'claude', docs: 'https://docs.anthropic.com/en/docs/claude-code/quickstart', provider: 'Anthropic' },
-      { label: 'Codex', icon: '⬡', tool: 'codex', command: 'npm install -g @openai/codex', verify: 'codex --version', login: 'codex login', docs: 'https://github.com/openai/codex', provider: 'OpenAI' },
-      { label: 'Gemini', icon: '◆', tool: 'gemini', command: 'npm install -g @google/gemini-cli', verify: 'gemini --version', login: 'gemini', docs: 'https://github.com/google-gemini/gemini-cli', provider: 'Google' },
-      { label: 'OpenCode', icon: '<>', tool: 'opencode', command: 'curl -fsSL https://opencode.ai/install | bash', verify: 'opencode --version', login: 'opencode auth login', docs: 'https://opencode.ai/download', provider: 'SST' },
-      { label: 'iFlow', icon: 'IF', tool: 'iflow', command: 'bash -c "$(curl -fsSL https://gitee.com/iflow-ai/iflow-cli/raw/main/install.sh)"', verify: 'iflow --version', login: 'iflow', docs: 'https://platform.iflow.cn/cli/quickstart', provider: 'iFlow' },
-      { label: 'Kimi', icon: 'KM', tool: 'kimi', command: 'curl -LsSf https://code.kimi.com/install.sh | bash', verify: 'kimi --version', login: 'kimi', docs: 'https://www.kimi.com/code/docs/en/kimi-code-cli/getting-started.html', provider: 'Moonshot AI' },
-      { label: 'Qoder', icon: 'QD', tool: 'qoder', command: 'curl -fsSL https://qoder.com/install | bash', verify: 'qodercli --version', login: 'qodercli', docs: 'https://docs.qoder.com/cli/quick-start', provider: 'Qoder' }
+      { label: 'Claude Code', fallback: 'CC', logo: 'https://claude.ai/favicon.ico', tool: 'claude', command: 'curl -fsSL https://claude.ai/install.sh | bash', verify: 'claude --version', login: 'claude', docs: 'https://docs.anthropic.com/en/docs/claude-code/quickstart', provider: 'Anthropic' },
+      { label: 'Codex', fallback: 'CX', logo: 'https://avatars.githubusercontent.com/u/14957082?s=96&v=4', tool: 'codex', command: 'npm install -g @openai/codex', verify: 'codex --version', login: 'codex login', docs: 'https://github.com/openai/codex', provider: 'OpenAI' },
+      { label: 'Gemini', fallback: 'GM', logo: 'https://avatars.githubusercontent.com/u/161781182?s=96&v=4', tool: 'gemini', command: 'npm install -g @google/gemini-cli', verify: 'gemini --version', login: 'gemini', docs: 'https://github.com/google-gemini/gemini-cli', provider: 'Google' },
+      { label: 'OpenCode', fallback: 'OC', logo: 'https://opencode.ai/favicon-96x96-v3.png', tool: 'opencode', command: 'curl -fsSL https://opencode.ai/install | bash', verify: 'opencode --version', login: 'opencode auth login', docs: 'https://opencode.ai/download', provider: 'SST' },
+      { label: 'iFlow', fallback: 'IF', logo: 'https://img.alicdn.com/imgextra/i1/O1CN01jgdyc81WIsdSepA4X_!!6000000002766-55-tps-162-162.svg', tool: 'iflow', command: 'bash -c "$(curl -fsSL https://gitee.com/iflow-ai/iflow-cli/raw/main/install.sh)"', verify: 'iflow --version', login: 'iflow', docs: 'https://platform.iflow.cn/cli/quickstart', provider: 'iFlow' },
+      { label: 'Kimi', fallback: 'KM', logo: 'https://www.kimi.com/favicon.ico', tool: 'kimi', command: 'curl -LsSf https://code.kimi.com/install.sh | bash', verify: 'kimi --version', login: 'kimi', docs: 'https://www.kimi.com/code/docs/en/kimi-code-cli/getting-started.html', provider: 'Moonshot AI' },
+      { label: 'Qoder', fallback: 'QD', logo: 'https://docs.qoder.com/mintlify-assets/_mintlify/favicons/qoder/-6DIoH8zsEnnm9G9/_generated/favicon-dark/favicon-32x32.png', tool: 'qoder', command: 'curl -fsSL https://qoder.com/install | bash', verify: 'qodercli --version', login: 'qodercli', docs: 'https://docs.qoder.com/cli/quick-start', provider: 'Qoder' }
     ];
 
     function $(id) { return document.getElementById(id); }
@@ -954,18 +939,13 @@ const webUIHTML = `<!doctype html>
       connectTerminal();
     }
 
-    function sourceForTool(name) {
-      return installSources.find(function(item) { return item.tool === name; }) || { label: name, icon: 'CL', login: name, verify: name + ' --version' };
+    function renderCliManager() {
+      renderInstalledClis();
     }
 
-    function renderCliManager() {
-      document.querySelectorAll('[data-manager-tab]').forEach(function(button) {
-        button.classList.toggle('active', button.dataset.managerTab === state.managerTab);
-      });
-      $('installed-panel').classList.toggle('hidden', state.managerTab !== 'installed');
-      $('repositories-panel').classList.toggle('hidden', state.managerTab !== 'repositories');
-      renderInstalledClis();
-      renderRepositories();
+    function renderCliLogo(source) {
+      const fallback = source.fallback || source.label.slice(0, 2).toUpperCase();
+      return '<div class="cli-logo"><img src="' + escapeHTML(source.logo || '') + '" alt="' + escapeHTML(source.label) + '" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.display=&quot;none&quot;;this.nextElementSibling.style.display=&quot;grid&quot;"><span>' + escapeHTML(fallback) + '</span></div>';
     }
 
     function renderInstalledClis() {
@@ -976,37 +956,23 @@ const webUIHTML = `<!doctype html>
         const version = available ? (tool.detected_version || tool.version || '-') : t('notInstalled');
         const healthClass = available ? 'ok' : 'bad';
         const healthText = available ? t('healthOK') : t('notInstalled');
+        const actions = available
+          ? '<button class="ghost" type="button" data-login-command="' + escapeHTML(source.login) + '">' + escapeHTML(t('quickLogin')) + ' ↪</button>' +
+            '<button class="ghost" type="button" data-install-command="' + escapeHTML(source.verify) + '">' + escapeHTML(t('verify')) + '</button>' +
+            (state.session && state.session.admin && known.has(source.tool) ? '<button class="danger" type="button" data-delete-tool="' + escapeHTML(source.tool) + '">' + escapeHTML(t('delete')) + '</button>' : '')
+          : '<button class="primary" type="button" data-install-command="' + escapeHTML(source.command) + '">' + escapeHTML(t('installCli')) + '</button>' +
+            '<a href="' + escapeHTML(source.docs) + '" target="_blank" rel="noopener noreferrer">' + escapeHTML(t('officialSource')) + '</a>';
         return '<article class="cli-card">' +
-          '<div class="cli-logo">' + escapeHTML(source.icon) + '</div>' +
+          renderCliLogo(source) +
           '<div>' +
             '<div class="cli-name">' + escapeHTML(source.label) + '</div>' +
             '<div class="cli-version">' + escapeHTML(version) + '</div>' +
             '<div class="cli-health"><span class="badge ' + healthClass + '"><span class="led ' + (available ? 'ok' : 'bad') + '"></span>' + escapeHTML(healthText) + '</span></div>' +
           '</div>' +
-          '<div class="cli-actions">' +
-            '<button class="ghost" type="button" data-login-command="' + escapeHTML(source.login) + '">' + escapeHTML(t('quickLogin')) + ' ↪</button>' +
-            '<button class="ghost" type="button" data-install-command="' + escapeHTML(source.verify) + '">' + escapeHTML(t('verify')) + '</button>' +
-            (state.session && state.session.admin && known.has(source.tool) ? '<button class="danger" type="button" data-delete-tool="' + escapeHTML(source.tool) + '">' + escapeHTML(t('delete')) + '</button>' : '') +
-          '</div>' +
+          '<div class="cli-actions">' + actions + '</div>' +
         '</article>';
       }).join('');
       bindManagerButtons($('installed-panel'));
-    }
-
-    function renderRepositories() {
-      $('repositories-panel').innerHTML = installSources.map(function(source) {
-        return '<article class="repo-card">' +
-          '<div class="repo-head"><div class="repo-title"><strong>' + escapeHTML(source.label) + '</strong><span>' + escapeHTML(source.provider) + ' · ' + escapeHTML(t('officialSource')) + '</span></div></div>' +
-          '<div class="command">' + escapeHTML(source.command) + '</div>' +
-          '<div class="repo-actions">' +
-            '<a href="' + escapeHTML(source.docs) + '" target="_blank" rel="noopener noreferrer">' + escapeHTML(t('officialSource')) + '</a>' +
-            '<button class="primary" type="button" data-install-command="' + escapeHTML(source.command) + '">' + escapeHTML(t('terminalInstall')) + '</button>' +
-            '<button class="ghost" type="button" data-install-command="' + escapeHTML(source.verify) + '">' + escapeHTML(t('verify')) + '</button>' +
-            '<button class="ghost" type="button" data-login-command="' + escapeHTML(source.login) + '">' + escapeHTML(t('quickLogin')) + '</button>' +
-          '</div>' +
-        '</article>';
-      }).join('');
-      bindManagerButtons($('repositories-panel'));
     }
 
     function bindManagerButtons(root) {
@@ -1143,12 +1109,6 @@ const webUIHTML = `<!doctype html>
     }
 
     document.querySelectorAll('[data-view]').forEach(function(button) { button.addEventListener('click', function() { switchView(button.dataset.view); }); });
-    document.querySelectorAll('[data-manager-tab]').forEach(function(button) {
-      button.addEventListener('click', function() {
-        state.managerTab = button.dataset.managerTab;
-        renderCliManager();
-      });
-    });
     document.querySelectorAll('[data-lang]').forEach(function(button) {
       button.addEventListener('click', function() {
         state.lang = button.dataset.lang;
@@ -1156,7 +1116,6 @@ const webUIHTML = `<!doctype html>
         applyLanguage();
       });
     });
-    $('show-install').addEventListener('click', function() { state.managerTab = 'repositories'; renderCliManager(); });
     $('login').addEventListener('click', function() { login(true).catch(function(err) { showToast(err.message); }); });
     $('refresh').addEventListener('click', function() { refresh().then(function() { showToast(t('refreshed')); }).catch(function(err) { showToast(err.message); }); });
     $('refresh-tools').addEventListener('click', function() { refreshTools().then(renderCliManager).catch(function(err) { showToast(err.message); }); });

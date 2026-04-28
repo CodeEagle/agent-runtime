@@ -71,6 +71,9 @@ func TestServerServesWebUIAtRoot(t *testing.T) {
 	if !strings.Contains(body, "Terminal") || !strings.Contains(body, "CLI Manager") {
 		t.Fatalf("expected terminal and inline CLI manager, got %q", body)
 	}
+	if !strings.Contains(body, "Installed CLIs") || strings.Contains(body, "Repositories") || strings.Contains(body, `data-manager-tab`) || strings.Contains(body, `repositories-panel`) {
+		t.Fatalf("expected CLI manager to show a single installed CLI list, got %q", body)
+	}
 	if strings.Contains(body, `data-view="tools-view"`) || strings.Contains(body, `id="tools-view"`) {
 		t.Fatalf("expected CLI manager to live inside terminal view, got %q", body)
 	}
@@ -94,6 +97,19 @@ func TestServerServesWebUIAtRoot(t *testing.T) {
 	} {
 		if !strings.Contains(body, marker) {
 			t.Fatalf("expected UI to include official install source %q", marker)
+		}
+	}
+	for _, marker := range []string{
+		"https://claude.ai/favicon.ico",
+		"https://avatars.githubusercontent.com/u/14957082",
+		"https://avatars.githubusercontent.com/u/161781182",
+		"https://opencode.ai/favicon-96x96-v3.png",
+		"https://img.alicdn.com/imgextra",
+		"https://www.kimi.com/favicon.ico",
+		"https://docs.qoder.com/mintlify-assets",
+	} {
+		if !strings.Contains(body, marker) {
+			t.Fatalf("expected UI to include official CLI logo or source %q", marker)
 		}
 	}
 }
